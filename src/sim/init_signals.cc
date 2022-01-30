@@ -64,18 +64,21 @@ namespace gem5
 {
 
 // Use an separate stack for fatal signal handlers
-static uint8_t fatalSigStack[2 * SIGSTKSZ];
+static uint8_t* fatalSigStack = nullptr;
 
 static bool
 setupAltStack()
 {
+    if (fatalSigStack == nullptr) {
+        fatalSigStack = new uint8_t[2 * SIGSTKSZ];
+    }
     stack_t stack;
 #if defined(__FreeBSD__) && (__FreeBSD_version < 1100097)
     stack.ss_sp = (char *)fatalSigStack;
 #else
     stack.ss_sp = fatalSigStack;
 #endif
-    stack.ss_size = sizeof(fatalSigStack);
+    stack.ss_size = sizeof(fatalSigStack[0]) * 2 * SIGSTKSZ;
     stack.ss_flags = 0;
 
     return sigaltstack(&stack, NULL) == 0;

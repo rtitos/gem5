@@ -140,8 +140,13 @@ class AbstractController : public ClockedObject, public Consumer
     int functionalMemoryWrite(PacketPtr);
 
     //! Function for enqueuing a prefetch request
-    virtual void enqueuePrefetch(const Addr &, const RubyRequestType&)
-    { fatal("Prefetches not implemented!");}
+    virtual void enqueuePrefetch(const Addr &addr,
+                                 const RubyRequestType& request_type)
+    { enqueuePrefetch(addr, request_type, false); }
+
+    virtual void enqueuePrefetch(const Addr &, const RubyRequestType&,
+                                 const bool& trans)
+    { fatal("Prefetches not implemented!"); }
 
     //! Notifies controller of a request coalesced at the sequencer.
     //! By default, it does nothing. Behavior is protocol-specific

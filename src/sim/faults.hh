@@ -156,6 +156,24 @@ class GenericHtmFailureFault : public FaultBase
                 nullStaticInstPtr) override;
 };
 
+class HtmLoadReExec : public FaultBase
+{
+  public:
+    virtual FaultName name() const override {
+        return "Transactional load re-execution fault"; }
+    void invoke(ThreadContext *tc, const StaticInstPtr &inst=
+                nullStaticInstPtr) override;
+};
+
+class HtmFailedCacheAccess : public FaultBase
+{
+  public:
+    virtual FaultName name() const override {
+        return "Failed cache access fault"; }
+    void invoke(ThreadContext *tc, const StaticInstPtr &inst=
+                nullStaticInstPtr) override;
+};
+
 } // namespace gem5
 
 #endif // __FAULTS_HH__

@@ -123,7 +123,9 @@ void GenericHtmFailureFault::invoke(ThreadContext *tc,
     assert(checkpoint);
     assert(checkpoint->valid());
 
-    checkpoint->restore(tc, getHtmFailureFaultCause());
+    // Restore with ISA visible cause, but keep precise cause when
+    // sending abort packet to Ruby
+    checkpoint->restore(tc, getIsaVisibleHtmFailureCause(cause));
 
     // reset the global monitor
     TheISA::globalClearExclusive(tc);
@@ -131,5 +133,19 @@ void GenericHtmFailureFault::invoke(ThreadContext *tc,
     // send abort packet to ruby (in final breath)
     tc->htmAbortTransaction(htmUid, cause);
 }
+
+// These type of faults should be replaced with ReExec
+void
+HtmLoadReExec::invoke(ThreadContext *tc, const StaticInstPtr &inst)
+{
+    panic("Should never invoke HtmLoadReExec faults!\n");
+}
+
+void
+HtmFailedCacheAccess::invoke(ThreadContext *tc, const StaticInstPtr &inst)
+{
+    panic("Should neverinvoke HtmFailedCacheAccess faults!\n");
+}
+
 
 } // namespace gem5

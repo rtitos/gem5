@@ -68,6 +68,7 @@ namespace gem5
 class BaseCPU;
 struct BaseCPUParams;
 class CheckerCPU;
+class BaseHTMChecker;
 class ThreadContext;
 
 struct AddressMonitor
@@ -379,6 +380,11 @@ class BaseCPU : public ClockedObject
      * Get the cache line size of the system.
      */
     inline unsigned int cacheLineSize() const { return _cacheLineSize; }
+    /**
+     * Get the block mask from the cache line size
+     */
+    inline uint64_t cacheBlockMask() const {
+        return ~((uint64_t)cacheLineSize()-1) ; }
 
     /**
      * Serialize this object to the given output stream.
@@ -560,6 +566,9 @@ class BaseCPU : public ClockedObject
     static std::vector<BaseCPU *> cpuList;   //!< Static global cpu list
 
   public:
+    /** Pointer to the HTM checker */
+    BaseHTMChecker *htmChecker;
+
     void traceFunctions(Addr pc)
     {
         if (functionTracingEnabled)
@@ -611,6 +620,11 @@ class BaseCPU : public ClockedObject
         assert(tid < numThreads);
         return &addressMonitor[tid];
     }
+
+    void retireInst(bool isMemRef, bool isCriticalRegion,
+                    Trace::InstRecord *traceData);
+    void createLockstepChecker();
+    void openLockstepChecker();
 
     Cycles syscallRetryLatency;
 

@@ -49,6 +49,7 @@
 #include "base/trace.hh"
 #include "config/the_isa.hh"
 #include "cpu/base.hh"
+#include "cpu/checker/htm_checker.hh"
 #include "cpu/simple/base.hh"
 #include "cpu/thread_context.hh"
 #include "mem/se_translating_port_proxy.hh"
@@ -179,6 +180,9 @@ SimpleThread::htmAbortTransaction(uint64_t htm_uid, HtmFailureFaultCause cause)
     // these must be reset after the abort signal has been sent
     htmTransactionStarts = 0;
     htmTransactionStops = 0;
+
+    // Notify htm checker
+    baseCpu->htmChecker->abort();
 }
 
 BaseHTMCheckpointPtr&

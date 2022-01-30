@@ -121,6 +121,13 @@ Tstart64::completeAcc(PacketPtr pkt, ExecContext *xc,
             armcpt->destinationRegister(dest);
 
             ArmISA::globalClearExclusive(tc);
+
+            if (tc->forceHtmDisabled()) {
+                // Speculation disabled/lockstep mode replay
+                const uint64_t htm_uid = xc->getHtmTransactionUid();
+                fault = std::make_shared<GenericHtmFailureFault>(
+                           htm_uid, HtmFailureFaultCause::DISABLED);
+            }
         }
 
         xc->setIntRegOperand(this, 0, (Dest64) & mask(intWidth));

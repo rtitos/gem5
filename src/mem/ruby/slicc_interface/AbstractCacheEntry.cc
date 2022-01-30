@@ -57,6 +57,7 @@ AbstractCacheEntry::AbstractCacheEntry() : ReplaceableEntry()
     m_last_touch_tick = 0;
     m_htmInReadSet = false;
     m_htmInWriteSet = false;
+    m_htmLogPending = false;
 }
 
 AbstractCacheEntry::~AbstractCacheEntry()
@@ -124,6 +125,18 @@ bool
 AbstractCacheEntry::getInHtmWriteSet() const
 {
     return m_htmInWriteSet;
+}
+
+void
+AbstractCacheEntry::setHtmLogPending(bool val)
+{
+    m_htmLogPending = val;
+}
+
+bool
+AbstractCacheEntry::getHtmLogPending() const
+{
+    return m_htmLogPending;
 }
 
 } // namespace ruby

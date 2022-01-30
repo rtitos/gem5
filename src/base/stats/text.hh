@@ -99,6 +99,7 @@ class Text : public Output
 
     // Implement Output
     bool valid() const override;
+    void beginConfig(const std::string &file) override;
     void begin() override;
     void end() override;
 };

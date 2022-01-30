@@ -1,0 +1,10 @@
+ubuntu-18-04.img:
+
+Ubuntu 18.04.2 from publicly available resources in boot tests:
+http://dist.gem5.org/dist/current/images/x86/ubuntu-18-04/base.img.gz,
+replaced exit.sh in .bashrc with /sbin/gem5init, to create checkpoint
+after boot and read script when checkpoint restored.
+
+
+x86_64-benchmarks.img:
+Disk image where benchmark binaries and inputs are placed for simulation

@@ -141,6 +141,9 @@ X86StaticInst::divideStep(uint64_t dividend, uint64_t divisor,
 void
 X86StaticInst::printReg(std::ostream &os, RegId reg, int size)
 {
+    // TODO: Prevent calling printReg if size is 0
+    if (size == 0) return;
+
     assert(size == 1 || size == 2 || size == 4 || size == 8);
     static const char * abcdFormats[9] =
         {"", "%s",  "%sx",  "", "e%sx", "", "", "", "r%sx"};

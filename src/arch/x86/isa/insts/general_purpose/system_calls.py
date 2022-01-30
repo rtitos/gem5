@@ -36,6 +36,7 @@
 microcode = '''
 def macroop SYSCALL_64
 {
+    .system_call
     # All 1s.
     limm t1, "(uint64_t)(-1)", dataSize=8
 
@@ -89,6 +90,7 @@ def macroop SYSCALL_64
 
 def macroop SYSCALL_COMPAT
 {
+    .system_call
     # All 1s.
     limm t1, "(uint64_t)(-1)", dataSize=8
 

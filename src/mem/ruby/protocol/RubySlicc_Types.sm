@@ -154,6 +154,39 @@ structure (HTMSequencer, interface="Sequencer", external = "yes") {
   void htmCallback(Addr, HtmCallbackMode, HtmFailedInCacheReason);
 }
 
+structure (TransactionalSequencer, interface="Sequencer", external = "yes") {
+  // hardware transactional memory (Univ. Murcia)
+  void failedCallback(Addr, DataBlock, Cycles, MachineID, bool);
+}
+
+structure (TransactionInterfaceManager, external = "yes") {
+  // HTM support
+  bool shouldNackLoad(Addr, MachineID, Cycles, bool);
+  bool shouldNackStore(Addr, MachineID, Cycles, bool, bool);
+  Cycles getOldestTimestamp();
+
+  bool isDoomed();
+  bool checkWriteSignature(Addr);
+  bool checkReadSignature(Addr);
+  void xactReplacement(Addr, MachineID);
+  void xactReplacement(Addr, MachineID, bool);
+
+  void notifyMissCompleted(bool, bool);
+  void notifyReceiveNack(Addr, Cycles, MachineID);
+
+  bool config_lazyVM();
+  bool config_eagerCD();
+  bool shouldNackL1LocalEviction(Addr);
+  bool config_allowReadSetL2CacheEvictions();
+  bool config_allowWriteSetL2CacheEvictions();
+  bool config_allowReadSetL1CacheEvictions();
+  bool config_allowWriteSetL1CacheEvictions();
+  bool config_allowReadSetLowerLevelCacheEvictions();
+  bool config_allowWriteSetLowerLevelCacheEvictions();
+  bool config_preciseReadSetTracking();
+  bool config_reloadIfStale();
+}
+
 structure(RubyRequest, desc="...", interface="Message", external="yes") {
   Addr LineAddress,       desc="Line address for this request";
   Addr PhysicalAddress,   desc="Physical address for this request";

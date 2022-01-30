@@ -66,6 +66,7 @@ struct Output
 {
     virtual ~Output() {}
 
+    virtual void beginConfig(const std::string &file) = 0;
     virtual void begin() = 0;
     virtual void end() = 0;
     virtual bool valid() const = 0;

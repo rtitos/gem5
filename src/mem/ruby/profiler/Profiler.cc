@@ -57,6 +57,7 @@
 #include "mem/ruby/profiler/AddressProfiler.hh"
 #include "mem/ruby/protocol/MachineType.hh"
 #include "mem/ruby/protocol/RubyRequest.hh"
+#include "mem/ruby/profiler/XactProfiler.hh"
 
 /**
  * the profiler uses GPUCoalescer code even
@@ -90,11 +91,20 @@ Profiler::Profiler(const RubySystemParams &p, RubySystem *rs)
     : m_ruby_system(rs), m_hot_lines(p.hot_lines),
       m_all_instructions(p.all_instructions),
       m_num_vnets(p.number_of_virtual_networks),
+      m_xact_profiler(false),
       rubyProfilerStats(rs, this)
 {
     m_address_profiler_ptr = new AddressProfiler(p.num_of_sequencers, this);
     m_address_profiler_ptr->setHotLines(m_hot_lines);
     m_address_profiler_ptr->setAllInstructions(m_all_instructions);
+    if (rs->getHTM() != nullptr) {
+        assert(p.protocol == "MESI_Two_Level_HTM_umu" ||
+               p.protocol == "MESI_Three_Level_HTM_umu");
+        m_xact_profiler = rs->getHTM()->params().profiler;
+        if (m_xact_profiler) {
+            m_xact_profiler_ptr = new XactProfiler(rs);
+        }
+    }
 
     if (m_all_instructions) {
         m_inst_profiler_ptr = new AddressProfiler(p.num_of_sequencers, this);
@@ -107,6 +117,14 @@ Profiler::~Profiler()
 {
 }
 
+void
+Profiler::resetStats()
+{
+    if (m_xact_profiler) {
+        m_xact_profiler_ptr->resetStats();
+    }
+}
+    
 Profiler::
 ProfilerStats::ProfilerStats(statistics::Group *parent, Profiler *profiler)
     : statistics::Group(parent),
@@ -122,6 +140,11 @@ ProfilerStats::ProfilerStats(statistics::Group *parent, Profiler *profiler)
       ADD_STAT(m_missLatencyHistSeqr, ""),
       ADD_STAT(m_missLatencyHistCoalsr, "")
 {
+#if 0
+    if (m_xact_profiler) {
+      m_xact_profiler_ptr->regStats(pName);
+    }
+#endif
     delayHistogram
         .init(10)
         .flags(statistics::nozero | statistics::pdf | statistics::oneline);
@@ -378,6 +401,24 @@ Profiler::collateStats()
         m_inst_profiler_ptr->collateStats();
     }
 
+    assert(g_system_ptr != NULL);
+#if 0
+    if (hasXactProfiler()) {
+        /* Ensure we profile all pending cycles before simulation
+           exits, and also print final tick/cycle in xact visualizer
+           by moving to invalid region and back.
+        */
+        m_xact_profiler_ptr->profileCurrentAnnotatedRegion();
+        for (uint32_t i = 0;
+             i < m_ruby_system->params().num_of_sequencers;
+             ++i) {
+            m_xact_profiler_ptr->moveTo(i, AnnotatedRegion_INVALID);
+            m_xact_profiler_ptr->moveTo(i, AnnotatedRegion_DEFAULT);
+        }
+    }
+
+    m_ruby_cycles = m_ruby_system->curCycle() - m_ruby_system->getStartCycle();
+#endif
     for (uint32_t i = 0; i < MachineType_NUM; i++) {
         for (std::map<uint32_t, AbstractController*>::iterator it =
                   m_ruby_system->m_abstract_controls[i].begin();
@@ -584,5 +625,12 @@ Profiler::addAddressTraceSample(const RubyRequest& msg, NodeID id)
     }
 }
 
+void
+Profiler::printProfilers() {
+    /* Anything that gets profiled but is not registered as a valid
+       statistic (via regStats) is printed here.
+     */
+    if (m_xact_profiler) m_xact_profiler_ptr->printProfilers();
+}
 } // namespace ruby
 } // namespace gem5

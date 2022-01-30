@@ -77,6 +77,12 @@ machineIDToMachineType(MachineID machID)
     return machID.type;
 }
 
+inline bool
+machineIDIsValid(MachineID machID)
+{
+    return machID.isValid();
+}
+
 inline int
 machineCount(MachineType machType)
 {
@@ -87,6 +93,13 @@ inline MachineID
 createMachineID(MachineType type, NodeID id)
 {
     MachineID mach = {type, id};
+    return mach;
+}
+
+inline MachineID
+createInvalidMachineID()
+{
+    MachineID mach = {MachineType_NUM, 0};
     return mach;
 }
 

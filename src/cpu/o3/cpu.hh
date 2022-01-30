@@ -709,6 +709,8 @@ class CPU : public BaseCPU
     // hardware transactional memory
     void htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
                             HtmFailureFaultCause cause);
+    void htmSendSignal(ThreadID tid, uint64_t htm_uid,
+                       Addr addr, const Request::Flags flags);
 };
 
 } // namespace o3

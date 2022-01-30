@@ -95,5 +95,6 @@ class StaticInstFlags(Enum):
         # hardware transactional memory
         'IsHtmStart',       # Starts a HTM transaction
         'IsHtmStop',        # Stops (commits) a HTM transaction
+        'IsHtmStopFence',   # This microop is the mfence prior to htm stop
         'IsHtmCancel'       # Explicitely aborts a HTM transaction
         ]

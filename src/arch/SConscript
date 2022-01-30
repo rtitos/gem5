@@ -222,5 +222,6 @@ DebugFlag('VecRegs')
 DebugFlag('VecPredRegs')
 DebugFlag('CCRegs')
 DebugFlag('MiscRegs')
+DebugFlag('HtmArch')
 CompoundFlag('Registers', [ 'IntRegs', 'FloatRegs', 'VecRegs', 'VecPredRegs',
                             'CCRegs', 'MiscRegs' ])

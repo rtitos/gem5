@@ -47,6 +47,7 @@ from m5.objects.SimpleMemory import *
 
 class MemoryMode(Enum): vals = ['invalid', 'atomic', 'timing',
                                 'atomic_noncaching']
+class LockStepMode(Enum): vals = ['record', 'replay', 'disabled']
 
 if buildEnv['TARGET_ISA'] in ('sparc', 'power'):
     default_byte_order = 'big'
@@ -63,6 +64,7 @@ class System(SimObject):
     cxx_exports = [
         PyBindMethod("getMemoryMode"),
         PyBindMethod("setMemoryMode"),
+        PyBindMethod("setupLockstepManager"),
     ]
 
     memories = VectorParam.AbstractMemory(Self.all,
@@ -116,6 +118,8 @@ class System(SimObject):
         "exit simulation when work items end count value is reached")
     work_cpus_ckpt_count = Param.Counter(0,
         "create checkpoint when active cpu count value is reached")
+    work_item_show_progress = Param.Bool(True,
+            "Show progress for completed work items via stdout ")
 
     workload = Param.Workload(NULL, "Workload to run on this system")
     init_param = Param.UInt64(0, "numerical value to pass into simulator")
@@ -135,6 +139,31 @@ class System(SimObject):
         0xffff0000 if buildEnv['TARGET_ISA'] == 'x86' else 0,
         "Base of the 64KiB PA range used for memory-mapped m5ops. Set to 0 "
         "to disable.")
+
+    # HTM related/specific options
+    htm = Param.HTM(NULL, "")
+
+    # When using KVM to fast forward simulation, checkpoiting does not
+    # take place at the expected location (m5_work_begin) since the
+    # required drain to write the checkpoint cannot happen
+    # immediately: The vCPUs continue executing for thousands of
+    # instructions after the point in the program where the m5 op
+    # initiates the drain, and the state written by the checkpoint
+    # corresponds to a random point much later in program execution.
+    # To deal with this, benchmarks should include a "dummy loop"
+    # based on the value returned by the m5_sum op, so that this
+    # parameter can control whether the execution is allowed to exit
+    # the dummy loop (no fast-forward with KVM).
+    checkpoint_m5sum_kvm_hack = Param.Bool(False,
+        "Hack to stall fast-forward simulations for correct checkpointing")
+
+    # Lockstep record/replay simulation support: debugging facility
+    # for parallel simulations, checking instructions and values
+    # observed/produced by each critical section. A "replayer"
+    # simulation (supposedly correct) compares its execution against
+    # the output of a recorder configuration (buggy, under test)
+    lockstep_mode = Param.LockStepMode('disabled', "Lockstep record/replay)")
+    lockstep_fifopath = Param.String('/tmp/gem5-lockstep_mode', "")
 
     if buildEnv['USE_KVM']:
         kvm_vm = Param.KvmVM(NULL, 'KVM VM (i.e., shared memory domain)')

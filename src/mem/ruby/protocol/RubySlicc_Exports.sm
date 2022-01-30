@@ -377,6 +377,8 @@ enumeration(RequestStatus, desc="...", default="RequestStatus_NULL")  {
   Issued, desc="The sequencer successfully issued the request";
   BufferFull, desc="Can not issue because the sequencer is full";
   Aliased, desc="This request aliased with a currently outstanding request";
+  AliasedNotIssued, desc="Can not issue because request aliased with a currently outstanding request with different transactional status";
+  WaitUntilLogged, desc="Can not issue because request aliased with a currently outstanding request with different transactional status";
   NULL, desc="";
 }
 

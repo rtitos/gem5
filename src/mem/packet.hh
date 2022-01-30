@@ -140,6 +140,7 @@ class MemCmd
         HTMReq,
         HTMReqResp,
         HTMAbort,
+        HTMIsolate,
         NUM_MEM_CMDS
     };
 
@@ -366,6 +367,9 @@ class Packet : public Printable
     RequestPtr req;
 
   private:
+    /// The original command field in a nacked request
+    MemCmd cmdPrev;
+
    /**
     * A pointer to the data being transferred. It can be different
     * sizes at each level of the hierarchy so it belongs to the
@@ -407,6 +411,26 @@ class Packet : public Printable
      * This is used for correctness/debugging only.
      */
     uint64_t htmTransactionUid;
+
+    /**
+     * Whether a memory access failed to perform in cache due to
+     * conflicts with remote transactions.
+     */
+    bool htmAccessFailed;
+    /**
+     * Whether this packet was generated as part of the logging
+     * process to support eager versioning.
+     */
+    bool htmStoreToLog;
+    /** For htmStoreToLog packets, keep a pointer to the packet from
+     * the transactional store that originated this log store packet
+     */
+    Addr htmLoggedStoreAddr;
+
+    /**
+     * Whether a memory access sits at the head of load/store queue.
+     */
+    bool atLSQHead;
 
   public:
 
@@ -854,6 +878,9 @@ class Packet : public Printable
            _qosValue(0),
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
+           htmAccessFailed(false),
+           htmStoreToLog(false), htmLoggedStoreAddr(0),
+           atLSQHead(false),
            headerDelay(0), snoopDelay(0),
            payloadDelay(0), senderState(NULL)
     {
@@ -876,7 +903,8 @@ class Packet : public Printable
          */
         if (req->isHTMCmd()) {
             flags.set(VALID_ADDR);
-            assert(addr == 0x0);
+            // HTM_ISOLATE commands do have an address
+            //assert(addr == 0x0);
         }
         if (req->hasSize()) {
             size = req->getSize();
@@ -895,6 +923,9 @@ class Packet : public Printable
            _qosValue(0),
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
+           htmAccessFailed(false),
+           htmStoreToLog(false), htmLoggedStoreAddr(0),
+           atLSQHead(false),
            headerDelay(0),
            snoopDelay(0), payloadDelay(0), senderState(NULL)
     {
@@ -923,6 +954,9 @@ class Packet : public Printable
            _qosValue(pkt->qosValue()),
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
+           htmAccessFailed(false),
+           htmStoreToLog(false), htmLoggedStoreAddr(0),
+           atLSQHead(false),
            headerDelay(pkt->headerDelay),
            snoopDelay(0),
            payloadDelay(pkt->payloadDelay),
@@ -968,6 +1002,8 @@ class Packet : public Printable
         if (req->isHTMCmd()) {
             if (req->isHTMAbort())
                 return MemCmd::HTMAbort;
+            else if (req->isHTMIsolate())
+                return MemCmd::HTMIsolate;
             else
                 return MemCmd::HTMReq;
         } else if (req->isLLSC())
@@ -1032,11 +1068,21 @@ class Packet : public Printable
     {
         assert(needsResponse());
         assert(isRequest());
+        cmdPrev = cmd;
         cmd = cmd.responseCommand();
 
         // responses are never express, even if the snoop that
         // triggered them was
         flags.clear(EXPRESS_SNOOP);
+    }
+
+    void
+    makePrevRequest()
+    {
+        assert(isResponse());
+        cmd = cmdPrev;
+        assert(isRequest());
+        assert(needsResponse());
     }
 
     void
@@ -1495,6 +1541,17 @@ class Packet : public Printable
      * failed transaction, this function returns the failure reason.
      */
     HtmCacheFailure getHtmTransactionFailedInCacheRC() const;
+    /**
+     * Whether a memory access failed to perform in cache due to
+     * conflicts with remote transactions.
+     */
+    void setHtmFailedCacheAccess(bool val);
+    bool isHtmFailedCacheAccess();
+    void setHtmStoreToLog(bool val, PacketPtr mainPkt = nullptr);
+    bool isHtmStoreToLog();
+    Addr getHtmLoggedStoreAddr() const;
+    void setAtLSQHead(bool val);
+    bool isAtLSQHead();
 };
 
 } // namespace gem5

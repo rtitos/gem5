@@ -353,6 +353,9 @@ def addCommonOptions(parser):
     parser.add_argument("--checkpoint-at-end", action="store_true",
                         help="take a checkpoint at end of run")
     parser.add_argument(
+        "--checkpoint-m5sum-kvm-hack", action="store_true",
+        help="Hack m5_sum in order to stall vCPUs until checkpoint written")
+    parser.add_argument(
         "--work-begin-checkpoint-count", action="store", type=int,
         help="checkpoint at specified work begin count")
     parser.add_argument(
@@ -412,6 +415,13 @@ def addCommonOptions(parser):
         "that are present under any of the roots. If not given, dump all "
         "stats. ")
 
+    # Lockstep record/replay testing/debugging facility
+    parser.add_argument("--lockstep-mode", default="disabled",
+                        choices=["disabled","record","replay"],
+                        help="Enable lockstep transactional execution ")
+    parser.add_argument("--lockstep-fifopath", action="store", type=str,
+        default=None,
+        help="Path of FIFO used in lockstep to pass commit order and values ")
 
 def addSEOptions(parser):
     # Benchmark options
@@ -501,6 +511,8 @@ def addFSOptions(parser):
             help="Enable stats dump at context "
             "switches and dump tasks file (required for Streamline)")
         parser.add_argument("--vio-9p", action="store_true", help=vio_9p_help)
+        parser.add_argument("--enable-tme", action="store_true",
+                            help="Enable Transactional Memory Extensions")
         parser.add_argument(
             "--bootloader", action='append',
             help="executable file that runs before the --kernel")

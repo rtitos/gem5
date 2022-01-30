@@ -1553,8 +1553,8 @@ X86KvmCPU::getMsrIntersection() const
                 cachedMsrIntersection.push_back(*it);
                 DPRINTF(Kvm, "kvm-x86: Adding MSR 0x%x\n", *it);
             } else {
-                warn("kvm-x86: MSR (0x%x) unsupported by gem5. Skipping.\n",
-                     *it);
+                warn_once("kvm-x86: MSR (0x%x) unsupported by gem5."
+                          " Skipping.\n", *it);
             }
         }
     }

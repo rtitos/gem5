@@ -129,6 +129,7 @@ pybind_init_stats(py::module_ &m_native)
 
     py::class_<statistics::Output>(m, "Output")
         .def("begin", &statistics::Output::begin)
+        .def("beginConfig", &Stats::Output::beginConfig)
         .def("end", &statistics::Output::end)
         .def("valid", &statistics::Output::valid)
         .def("beginGroup", &statistics::Output::beginGroup)

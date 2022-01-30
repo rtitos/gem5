@@ -54,6 +54,7 @@
 #include "base/statistics.hh"
 #include "config/the_isa.hh"
 #include "cpu/pc_event.hh"
+#include "enums/LockStepMode.hh"
 #include "enums/MemoryMode.hh"
 #include "mem/mem_requestor.hh"
 #include "mem/physical.hh"
@@ -61,6 +62,7 @@
 #include "mem/port_proxy.hh"
 #include "params/System.hh"
 #include "sim/futex_map.hh"
+#include "sim/lockstep.hh"
 #include "sim/mem_pool.hh"
 #include "sim/redirect_path.hh"
 #include "sim/se_signal.hh"
@@ -71,6 +73,7 @@ namespace gem5
 {
 
 class BaseRemoteGDB;
+class CommitOrder;
 class KvmVM;
 class ThreadContext;
 
@@ -418,6 +421,8 @@ class System : public SimObject, public PCEventScope
      */
     ThermalModel * getThermalModel() const { return thermalModel; }
 
+    HTM * getHTM() const { return htm; }
+
   protected:
 
     KvmVM *const kvmVM = nullptr;
@@ -433,6 +438,11 @@ class System : public SimObject, public PCEventScope
     uint64_t workItemsBegin = 0;
     uint64_t workItemsEnd = 0;
     uint32_t numWorkIds;
+    // HTM checker support
+    CommitOrder *commitOrderManager;
+    Lockstep    *lockstepManager;
+    /** Is the CPU a recorder or replayer (detailed phase) **/
+    enums::LockStepMode lockstepMode;
 
     /** This array is a per-system list of all devices capable of issuing a
      * memory system request and an associated string for each requestor id.
@@ -442,6 +452,7 @@ class System : public SimObject, public PCEventScope
     std::vector<RequestorInfo> requestors;
 
     ThermalModel * thermalModel;
+    HTM * htm;
 
   protected:
     /**
@@ -542,6 +553,12 @@ class System : public SimObject, public PCEventScope
         return ++workItemsBegin;
     }
 
+    uint64_t
+    getWorkItemsBegin()
+    {
+        return workItemsBegin;
+    }
+
     /**
      * Called by pseudo_inst to track the number of work items completed by
      * this system.
@@ -551,6 +568,12 @@ class System : public SimObject, public PCEventScope
     {
         return ++workItemsEnd;
     }
+
+    bool workItemShowProgress() const
+    {
+        return params().work_item_show_progress;
+    }
+
 
     /**
      * Called by pseudo_inst to mark the cpus actively executing work items.
@@ -572,6 +595,20 @@ class System : public SimObject, public PCEventScope
     }
 
     void workItemEnd(uint32_t tid, uint32_t workid);
+
+    inline CommitOrder* getCommitOrderManager() const
+    {
+        return commitOrderManager;
+    }
+    inline enums::LockStepMode getLockstepMode() const
+    {
+        return lockstepMode;
+    }
+    void setupLockstepManager(std::string mode);
+    inline Lockstep* getLockstepManager() const
+    {
+        return lockstepManager;
+    }
 
     /* Returns whether we successfully trapped into GDB. */
     bool trapToGdb(int signal, ContextID ctx_id) const;

@@ -120,12 +120,15 @@ class AbstractCacheEntry : public ReplaceableEntry
     void setInHtmWriteSet(bool val);
     bool getInHtmReadSet() const;
     bool getInHtmWriteSet() const;
+    void setHtmLogPending(bool val);
+    bool getHtmLogPending() const;
     virtual void invalidateEntry() {}
 
   private:
     // hardware transactional memory
     bool m_htmInReadSet;
     bool m_htmInWriteSet;
+    bool m_htmLogPending;
 };
 
 inline std::ostream&

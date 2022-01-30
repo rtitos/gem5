@@ -135,7 +135,9 @@ class BaseKvmCPU : public BaseCPU
      * Send a signal to the thread owning this vCPU to get it to exit
      * from KVM. Ignored if the vCPU is not executing.
      */
-    void kick() const { pthread_kill(vcpuThread, KVM_KICK_SIGNAL); }
+    void kick() const {
+        assert(threadStarted);
+        pthread_kill(vcpuThread, KVM_KICK_SIGNAL); }
 
     /**
      * A cached copy of a thread's state in the form of a SimpleThread
@@ -695,6 +697,9 @@ class BaseKvmCPU : public BaseCPU
     int vcpuFD;
     /** Size of MMAPed kvm_run area */
     int vcpuMMapSize;
+
+    /** Whether the startupThread method has been called */
+    bool threadStarted;
     /**
      * Pointer to the kvm_run structure used to communicate parameters
      * with KVM.

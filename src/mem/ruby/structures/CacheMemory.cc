@@ -51,6 +51,7 @@
 #include "debug/RubyStats.hh"
 #include "mem/cache/replacement_policies/weighted_lru_rp.hh"
 #include "mem/ruby/protocol/AccessPermission.hh"
+#include "mem/ruby/htm/TransactionInterfaceManager.hh"
 #include "mem/ruby/system/RubySystem.hh"
 
 namespace gem5
@@ -80,10 +81,12 @@ CacheMemory::CacheMemory(const Params &p)
     m_replacementPolicy_ptr = p.replacement_policy;
     m_start_index_bit = p.start_index_bit;
     m_is_instruction_only_cache = p.is_icache;
+    m_htm_aware_replacements = p.htm_aware_replacements;
     m_resource_stalls = p.resourceStalls;
     m_block_size = p.block_size;  // may be 0 at this point. Updated in init()
     m_use_occupancy = dynamic_cast<replacement_policy::WeightedLRU*>(
                                     m_replacementPolicy_ptr) ? true : false;
+    m_xact_mgr = NULL;
 }
 
 void
@@ -184,14 +187,16 @@ CacheMemory::getAddressAtIdx(int idx) const
 
 bool
 CacheMemory::tryCacheAccess(Addr address, RubyRequestType type,
-                            DataBlock*& data_ptr)
+                            DataBlock*& data_ptr, bool touch)
 {
     DPRINTF(RubyCache, "address: %#x\n", address);
     AbstractCacheEntry* entry = lookup(address);
     if (entry != nullptr) {
         // Do we even have a tag match?
-        m_replacementPolicy_ptr->touch(entry->replacementData);
-        entry->setLastAccess(curTick());
+        if (touch) {
+            m_replacementPolicy_ptr->touch(entry->replacementData);
+            entry->setLastAccess(curTick());
+        }
         data_ptr = &(entry->getDataBlk());
 
         if (entry->m_Permission == AccessPermission_Read_Write) {
@@ -329,10 +334,32 @@ CacheMemory::cacheProbe(Addr address) const
 
     int64_t cacheSet = addressToCacheSet(address);
     std::vector<ReplaceableEntry*> candidates;
-    for (int i = 0; i < m_cache_assoc; i++) {
-        candidates.push_back(static_cast<ReplaceableEntry*>(
-                                                       m_cache[cacheSet][i]));
-    }
+    TransactionInterfaceManager * xact_mgr = NULL;
+    do {
+        for (int i = 0; i < m_cache_assoc; i++) {
+            if (m_xact_mgr && !m_xact_mgr->config_lazyVM() && //LogTM
+                m_cache[cacheSet][i]->getHtmLogPending()) {
+                // Prevent victimization of undo log entries while
+                // transactional store is being logged
+                assert(!m_xact_mgr->config_lazyVM()); // LogTM
+                continue;
+            }
+            else if (m_htm_aware_replacements &&
+                     xact_mgr) {
+                Addr addr = m_cache[cacheSet][i]->m_Address;
+                if (xact_mgr->checkWriteSignature(addr) ||
+                    (!xact_mgr->config_allowReadSetLowerLevelCacheEvictions() &&
+                     xact_mgr->checkReadSignature(addr))) {
+                    // Exclude read-write set blocks from candidates
+                    continue;
+                }
+            }
+            candidates.push_back(static_cast<ReplaceableEntry*>(
+                                               m_cache[cacheSet][i]));
+        }
+        // Disable "xact-aware" in case we did not find any candidate
+        xact_mgr = NULL;
+    } while (candidates.empty());
     return m_cache[cacheSet][m_replacementPolicy_ptr->
                         getVictim(candidates)->getWay()]->m_Address;
 }
@@ -745,6 +772,47 @@ CacheMemory::htmCommitTransaction()
     cacheMemoryStats.htmTransCommitWriteSet.sample(htmWriteSetSize);
     DPRINTF(HtmMem, "htmCommitTransaction: read set=%u write set=%u\n",
         htmReadSetSize, htmWriteSetSize);
+}
+
+void
+CacheMemory::setHtmLogPending(Addr address, bool val)
+{
+    AbstractCacheEntry* entry = lookup(address);
+    assert(entry != nullptr);
+    if (!val) {
+        assert(entry->getHtmLogPending());
+    }
+    entry->setHtmLogPending(val);
+}
+
+bool
+CacheMemory::isHtmLogPending(Addr address) const
+{
+    const AbstractCacheEntry* entry = lookup(address);
+    if (entry != nullptr) {
+        return entry->getHtmLogPending();
+    } else {
+        return false;
+    }
+}
+
+void
+CacheMemory::checkHtmLogPendingClear() const
+{
+
+    // iterate through every set and way to get a cache line
+    for (auto i = m_cache.begin(); i != m_cache.end(); ++i)
+    {
+        std::vector<AbstractCacheEntry*> set = *i;
+
+        for (auto j = set.begin(); j != set.end(); ++j)
+        {
+            AbstractCacheEntry *line = *j;
+            if (line != nullptr) {
+                assert(!line->getHtmLogPending());
+             }
+        }
+    }
 }
 
 void

@@ -45,6 +45,7 @@
 #include "base/logging.hh"
 #include "base/str.hh"
 #include "cpu/testers/rubytest/RubyTester.hh"
+#include "debug/HtmMem.hh"
 #include "debug/LLSC.hh"
 #include "debug/MemoryAccess.hh"
 #include "debug/ProtocolTrace.hh"
@@ -187,9 +188,18 @@ Sequencer::llscStoreConditional(const Addr claddr)
                   claddr, m_version);
 
     if (line->isLocked(m_version)) {
+        DPRINTF(LLSC, "LLSC Monitor - "
+                "store conditional succeeded - "
+                "addr=0x%lx - cpu=%u\n",
+                claddr, m_version);
+
         line->clearLocked();
         return true;
     } else {
+        DPRINTF(LLSC, "LLSC Monitor - "
+                "store conditional failed - "
+                "addr=0x%lx - cpu=%u\n",
+                claddr, m_version);
         line->clearLocked();
         return false;
     }
@@ -311,12 +321,30 @@ Sequencer::insertRequest(PacketPtr pkt, RubyRequestType primary_type,
     Addr line_addr = makeLineAddress(pkt->getAddr());
     // Check if there is any outstanding request for the same cache line.
     auto &seq_req_list = m_RequestTable[line_addr];
+    if (pkt->isHtmTransactional() &&
+        seq_req_list.size() > 0) {
+        // Transactional request aliased with outstanding request
+        SequencerRequest &seq_req = seq_req_list.back();
+        if (!seq_req.pkt->isHtmTransactional()) {
+            // A transactional request cannot be merged with an
+            // outstanding non-transactional request, as the former
+            // must go through protocol in order to set the SR/SM bits
+            // used for read/write set tracking
+            DPRINTF(HtmMem,
+                    "Cannot issue trans req due to outstanding"
+                    " non-trans req paddr: 0x%x\n", pkt->getAddr());
+            return RequestStatus_AliasedNotIssued;
+        }
+    }
     // Create a default entry
     seq_req_list.emplace_back(pkt, primary_type,
         secondary_type, curCycle());
     m_outstanding_count++;
 
     if (seq_req_list.size() > 1) {
+        // Aliased request must match transactional status
+        assert(pkt->isHtmTransactional() ==
+               seq_req_list.back().pkt->isHtmTransactional());
         return RequestStatus_Aliased;
     }
 
@@ -400,6 +428,10 @@ Sequencer::recordMissLatency(SequencerRequest* srequest, bool llscSuccess,
 void
 Sequencer::writeCallbackScFail(Addr address, DataBlock& data)
 {
+    DPRINTF(LLSC, "LLSC Monitor - "
+            "store conditional failed in protocol - "
+            "addr=0x%lx - cpu=%u\n",
+            address, m_version);
     llscClearMonitor(address);
     writeCallback(address, data);
 }
@@ -604,6 +636,24 @@ Sequencer::hitCallback(SequencerRequest* srequest, DataBlock& data,
             pkt->setData(
                 data.getData(getOffset(request_address), pkt->getSize()));
             DPRINTF(RubySequencer, "read data %s\n", data);
+        } else if (pkt->cmd == MemCmd::SwapReq) {
+            if (pkt->isAtomicOp()) {
+                // ARM/RISCV AMO support
+                assert(system->getArch() == Arch::RiscvISA ||
+                       system->getArch() == Arch::ArmISA);
+                // Command is swap but req doesn't have swap flag set (
+                assert(!pkt->req->isSwap());
+                // extract data from cache and save it into the data field in
+                // the packet as a return value from this atomic op
+                uint8_t *blk_data =
+                    data.getDataMod(getOffset(request_address));
+                pkt->setData(blk_data);
+                // execute AMO operation
+                (*(pkt->getAtomicOp()))(blk_data);
+                DPRINTF(RubySequencer, "swap: set data %s\n", data);
+            } else {
+                panic("Non-atomic SwapReq command not implemented\n");
+            }
         } else if (pkt->req->isSwap()) {
             assert(!pkt->isMaskedWrite());
             std::vector<uint8_t> overwrite_val(pkt->getSize());
@@ -653,13 +703,22 @@ Sequencer::empty() const
     return m_RequestTable.empty();
 }
 
-RequestStatus
-Sequencer::makeRequest(PacketPtr pkt)
+bool
+Sequencer::canMakeRequest(PacketPtr pkt)
 {
     // HTM abort signals must be allowed to reach the Sequencer
     // the same cycle they are issued. They cannot be retried.
     if ((m_outstanding_count >= m_max_outstanding_requests) &&
         !pkt->req->isHTMAbort()) {
+        return false;
+    } else {
+        return true;
+    }
+}
+RequestStatus
+Sequencer::makeRequest(PacketPtr pkt)
+{
+    if (!canMakeRequest(pkt)) {
         return RequestStatus_BufferFull;
     }
 
@@ -760,6 +819,19 @@ Sequencer::makeRequest(PacketPtr pkt)
     // It is OK to receive RequestStatus_Aliased, it can be considered Issued
     if (status != RequestStatus_Ready && status != RequestStatus_Aliased)
         return status;
+    if (status == RequestStatus_Aliased) {
+        DPRINTFR(ProtocolTrace,
+                 "%15s %3s %10s%20s %6s>%-6s %#x %s %s %s %s %#x\n",
+                 curTick(), m_version, "Seq", "Aliased",
+                 pkt->isAtLSQHead() ? "Head" : "", "",
+                 printAddress(pkt->getAddr()),
+                 RubyRequestType_to_string(secondary_type),
+                 pkt->isHtmTransactional() ? "Trans" :
+                 (pkt->isHtmStoreToLog() ? "Log" : ""),
+                 pkt->req->isPriv() ? "Priv" : "",
+                 pkt->req->hasVaddr() ? "Vaddr" : "PhysAddr",
+                 pkt->req->hasVaddr() ? pkt->req->getVaddr() : Addr(0));
+    }
     // non-aliased with any existing request in the request table, just issue
     // to the cache
     if (status != RequestStatus_Aliased)
@@ -784,6 +856,11 @@ Sequencer::issueRequest(PacketPtr pkt, RubyRequestType secondary_type)
         pc = pkt->req->getPC();
     }
 
+    Addr vaddr = 0;
+    if (pkt->req->hasVaddr()) {
+        vaddr = pkt->req->getVaddr();
+    }
+
     // check if the packet has data as for example prefetch and flush
     // requests do not
     std::shared_ptr<RubyRequest> msg =
@@ -792,10 +869,15 @@ Sequencer::issueRequest(PacketPtr pkt, RubyRequestType secondary_type)
                                       RubyAccessMode_Supervisor, pkt,
                                       PrefetchBit_No, proc_id, core_id);
 
-    DPRINTFR(ProtocolTrace, "%15s %3s %10s%20s %6s>%-6s %#x %s\n",
-            curTick(), m_version, "Seq", "Begin", "", "",
-            printAddress(msg->getPhysicalAddress()),
-            RubyRequestType_to_string(secondary_type));
+    DPRINTFR(ProtocolTrace, "%15s %3s %10s%20s %6s>%-6s %#x %s %s %s %s %#x\n",
+             curTick(), m_version, "Seq", "Begin", "", "",
+             printAddress(msg->getPhysicalAddress()),
+             RubyRequestType_to_string(secondary_type),
+             pkt->isHtmTransactional() ? "Trans" :
+             (pkt->isHtmStoreToLog() ? "Log" : ""),
+             pkt->req->isPriv() ? "Priv" : "",
+             pkt->req->hasVaddr() ? "Vaddr" : "PhysAddr",
+             vaddr);
 
     // hardware transactional memory
     // If the request originates in a transaction,

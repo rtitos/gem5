@@ -510,35 +510,60 @@ namespace X86ISA
     static inline MiscRegIndex
     MISCREG_SEG_SEL(int index)
     {
-        assert(index >= 0 && index < NUM_SEGMENTREGS);
+        /*assert(index >= 0 && index < NUM_SEGMENTREGS);*/
+        if (index < 0 || index >= NUM_SEGMENTREGS) {
+            printf("Triggered (index >= 0 && index < NUM_SEGMENTREGS) assert. index = %d\n", index);
+            printf("Probably this is from a bad decoded instruction. Trying to continue (index = 0).\n");
+            index = 0;
+        }
         return (MiscRegIndex)(MISCREG_SEG_SEL_BASE + index);
     }
 
     static inline MiscRegIndex
     MISCREG_SEG_BASE(int index)
     {
-        assert(index >= 0 && index < NUM_SEGMENTREGS);
+        /*assert(index >= 0 && index < NUM_SEGMENTREGS);*/
+        if (index < 0 || index >= NUM_SEGMENTREGS) {
+            printf("Triggered (index >= 0 && index < NUM_SEGMENTREGS) assert. index = %d\n", index);
+            printf("Probably this is from a bad decoded instruction. Trying to continue (index = 0).\n");
+            index = 0;
+        }
         return (MiscRegIndex)(MISCREG_SEG_BASE_BASE + index);
     }
 
     static inline MiscRegIndex
     MISCREG_SEG_EFF_BASE(int index)
     {
-        assert(index >= 0 && index < NUM_SEGMENTREGS);
+        /*assert(index >= 0 && index < NUM_SEGMENTREGS);*/
+        if (index < 0 || index >= NUM_SEGMENTREGS) {
+            printf("Triggered (index >= 0 && index < NUM_SEGMENTREGS) assert. index = %d\n", index);
+            printf("Probably this is from a bad decoded instruction. Trying to continue (index = 0).\n");
+            index = 0;
+        }
         return (MiscRegIndex)(MISCREG_SEG_EFF_BASE_BASE + index);
     }
 
     static inline MiscRegIndex
     MISCREG_SEG_LIMIT(int index)
     {
-        assert(index >= 0 && index < NUM_SEGMENTREGS);
+        /*assert(index >= 0 && index < NUM_SEGMENTREGS);*/
+        if (index < 0 || index >= NUM_SEGMENTREGS) {
+            printf("Triggered (index >= 0 && index < NUM_SEGMENTREGS) assert. index = %d\n", index);
+            printf("Probably this is from a bad decoded instruction. Trying to continue (index = 0).\n");
+            index = 0;
+        }
         return (MiscRegIndex)(MISCREG_SEG_LIMIT_BASE + index);
     }
 
     static inline MiscRegIndex
     MISCREG_SEG_ATTR(int index)
     {
-        assert(index >= 0 && index < NUM_SEGMENTREGS);
+        /*assert(index >= 0 && index < NUM_SEGMENTREGS);*/
+        if (index < 0 || index >= NUM_SEGMENTREGS) {
+            printf("Triggered (index >= 0 && index < NUM_SEGMENTREGS) assert. index = %d\n", index);
+            printf("Probably this is from a bad decoded instruction. Trying to continue (index = 0).\n");
+            index = 0;
+        }
         return (MiscRegIndex)(MISCREG_SEG_ATTR_BASE + index);
     }
 

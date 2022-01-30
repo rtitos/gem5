@@ -128,6 +128,17 @@ Text::valid() const
 }
 
 void
+Text::beginConfig(const std::string &configIni_filename)
+{
+    ccprintf(*stream, "\n---------- Begin Configuration   ----------\n");
+    std::ifstream config_file(configIni_filename, std::ios::in);
+
+    assert(config_file.is_open());
+    *stream << config_file.rdbuf();
+    ccprintf(*stream, "\n---------- End Configuration   ----------\n");
+}
+
+void
 Text::begin()
 {
     ccprintf(*stream, "\n---------- Begin Simulation Statistics ----------\n");

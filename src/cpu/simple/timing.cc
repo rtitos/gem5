@@ -1235,6 +1235,10 @@ TimingSimpleCPU::initiateHtmCmd(Request::Flags flags)
 
     assert(req->isHTMCmd());
 
+    if (system->getHTM() != nullptr) {
+        panic("Configurable HTM support not tested for TimingSimpleCPU!");
+    }
+
     // Use the payload as a sanity check,
     // the memory subsystem will clear allocated data
     uint8_t *data = new uint8_t[size];

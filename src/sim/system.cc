@@ -65,6 +65,7 @@
 #include "mem/physical.hh"
 #include "params/System.hh"
 #include "sim/byteswap.hh"
+#include "sim/commit_order.hh"
 #include "sim/debug.hh"
 #include "sim/full_system.hh"
 #include "sim/redirect_path.hh"
@@ -210,7 +211,11 @@ System::System(const Params &p)
       memoryMode(p.mem_mode),
       _cacheLineSize(p.cache_line_size),
       numWorkIds(p.num_work_ids),
+      commitOrderManager(nullptr),
+      lockstepManager(nullptr),
+      lockstepMode(p.lockstep_mode),
       thermalModel(p.thermal_model),
+      htm(p.htm),
       _m5opRange(p.m5ops_base ?
                  RangeSize(p.m5ops_base, 0x10000) :
                  AddrRange(1, 0)), // Create an empty range if disabled
@@ -641,6 +646,21 @@ System::getRequestorName(RequestorID requestor_id)
 
     const auto& requestor_info = requestors[requestor_id];
     return requestor_info.req_name;
+}
+
+void
+System::setupLockstepManager(std::string mode)
+{
+    /* HTM checker support: create FIFOs used for passing
+       values/commit order during lockstep execution from detailed
+       CPU (recorder) to timing CPU (replayer)
+    */
+    lockstepManager = new Lockstep(this,
+                                   Lockstep::stringToLockstepMode(mode),
+                                   params().lockstep_fifopath);
+    // Pass along FIFO file descriptor to commit order mgr
+    int fd = lockstepManager->getFifoFileDescriptor();
+    commitOrderManager = new CommitOrder(this, fd);
 }
 
 } // namespace gem5

@@ -55,6 +55,7 @@ python_class_map = {
                     "WireBuffer": "RubyWireBuffer",
                     "Sequencer": "RubySequencer",
                     "HTMSequencer": "RubyHTMSequencer",
+                    "TransactionalSequencer": "RubyTransactionalSequencer",
                     "GPUCoalescer" : "RubyGPUCoalescer",
                     "VIPERCoalescer" : "VIPERCoalescer",
                     "DirectoryMemory": "RubyDirectoryMemory",
@@ -63,6 +64,7 @@ python_class_map = {
                     "MessageBuffer": "MessageBuffer",
                     "DMASequencer": "DMASequencer",
                     "RubyPrefetcher":"RubyPrefetcher",
+                    "TransactionInterfaceManager": "TransactionInterfaceManager",
                     "Cycles":"Cycles",
                    }
 

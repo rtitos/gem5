@@ -259,7 +259,8 @@ class LSQ
             WritebackScheduled  = 0x00001000,
             WritebackDone       = 0x00002000,
             /** True if this is an atomic request */
-            IsAtomic            = 0x00004000
+            IsAtomic            = 0x00004000,
+            HtmFailedCacheAccess  = 0x00008000
         };
         FlagsType flags;
 
@@ -476,6 +477,13 @@ class LSQ
         {
             return flags.isSet(Flag::IsSplit);
         }
+
+        bool
+        isHtmFailedCacheAccess() const
+        {
+            return flags.isSet(Flag::HtmFailedCacheAccess);
+        }
+
         /** @} */
         virtual bool recvTimingResp(PacketPtr pkt) = 0;
         virtual void sendPacketToCache() = 0;
@@ -497,6 +505,9 @@ class LSQ
         packetSent()
         {
             flags.set(Flag::Sent);
+            if (flags.isSet(Flag::HtmFailedCacheAccess)) {
+                flags.clear(Flag::HtmFailedCacheAccess);
+            }
         }
         /** Update the status to reflect that a packet was not sent.
          * When a packet fails to be sent, we mark the request as needing a
@@ -507,6 +518,14 @@ class LSQ
         {
             flags.set(Flag::Retry);
             flags.clear(Flag::Sent);
+        }
+        /** Update the status to reflect that a packet was nacked.
+         */
+        void
+        packetNacked()
+        {
+            flags.clear(Flag::Sent);
+            assert(flags.isSet(Flag::HtmFailedCacheAccess));
         }
 
         void sendFragmentToTranslation(int i);
@@ -541,6 +560,11 @@ class LSQ
         isSent()
         {
             return flags.isSet(Flag::Sent);
+        }
+        bool
+        isRetry()
+        {
+            return flags.isSet(Flag::Retry);
         }
 
         bool
@@ -886,6 +910,8 @@ class LSQ
     void resetHtmStartsStops(ThreadID tid);
     uint64_t getLatestHtmUid(ThreadID tid) const;
     void setLastRetiredHtmUid(ThreadID tid, uint64_t htmUid);
+    uint64_t getLastCommittedHtmUid(ThreadID tid) const;
+    void setAtHtmStopHtmUid(ThreadID tid, uint64_t htmUid);
 
     /** Returns the number of free load entries. */
     unsigned numFreeLoadEntries();

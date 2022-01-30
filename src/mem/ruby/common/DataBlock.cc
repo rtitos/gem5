@@ -107,6 +107,22 @@ DataBlock::print(std::ostream& out) const
     out << std::dec << "]" << std::flush;
 }
 
+std::string
+DataBlock::toString() const
+{
+    using namespace std;
+    stringstream sstream;
+
+    int size = RubySystem::getBlockSizeBytes();
+    sstream  << "[ ";
+    for (int i = 0; i < size; i++) {
+        sstream  << setfill('0') << setw(2) << hex <<  (int)m_data[i];
+    }
+    sstream  << setfill(' ') << setw(0) << dec << "]";
+    string str = sstream.str();
+    return str;
+}
+
 const uint8_t*
 DataBlock::getData(int offset, int len) const
 {

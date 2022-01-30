@@ -174,6 +174,7 @@ def makeSparcSystem(mem_mode, mdesc=None, cmdline=None):
 def makeArmSystem(mem_mode, machine_type, num_cpus=1, mdesc=None,
                   dtb_filename=None, bare_metal=False, cmdline=None,
                   external_memory="", ruby=False, security=False,
+                  transactional_memory=False,
                   vio_9p=None, bootloader=None):
     assert machine_type
 
@@ -237,6 +238,7 @@ def makeArmSystem(mem_mode, machine_type, num_cpus=1, mdesc=None,
               " another platform")
 
     self.have_security = security
+    self.have_tme = transactional_memory
 
     if bare_metal:
         # EOT character on UART will end the simulation

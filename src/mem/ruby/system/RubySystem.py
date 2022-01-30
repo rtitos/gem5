@@ -45,6 +45,7 @@ class RubySystem(ClockedObject):
 
     phys_mem = Param.SimpleMemory(NULL, "")
     system = Param.System(Parent.any, "system object")
+    protocol = Param.String("", "Coherence protocol used");
 
     access_backing_store = Param.Bool(False, "Use phys_mem as the functional \
         store and only use ruby for timing.")

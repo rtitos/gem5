@@ -29,6 +29,7 @@
 #include "arch/x86/isa.hh"
 
 #include "arch/x86/decoder.hh"
+#include "arch/x86/htm.hh"
 #include "arch/x86/mmu.hh"
 #include "arch/x86/regs/ccr.hh"
 #include "arch/x86/regs/int.hh"
@@ -473,6 +474,28 @@ ISA::unserialize(CheckpointIn &cp)
                      regVal[MISCREG_CS_ATTR],
                      regVal[MISCREG_SS_ATTR],
                      regVal[MISCREG_RFLAGS]);
+}
+
+void
+ISA::startup()
+{
+    BaseISA::startup();
+
+    assert(tc);
+    std::unique_ptr<BaseHTMCheckpoint> cpt(new HTMCheckpoint());
+    tc->setHtmCheckpointPtr(std::move(cpt));
+}
+
+void
+ISA::takeOverFrom(ThreadContext *new_tc, ThreadContext *old_tc)
+{
+    BaseISA::takeOverFrom(new_tc, old_tc);
+    tc = new_tc;
+
+    // Create another HTM checkpoint when switching CPUs, or else
+    // move it from the old tc to new tc
+    std::unique_ptr<BaseHTMCheckpoint> cpt(new HTMCheckpoint());
+    tc->setHtmCheckpointPtr(std::move(cpt));
 }
 
 void

@@ -214,6 +214,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     // to provide them with necessary memory ordering semantics.
     bool isHtmStart() const { return flags[IsHtmStart]; }
     bool isHtmStop() const { return flags[IsHtmStop]; }
+    bool isHtmStopFence() const { return flags[IsHtmStopFence]; }
     bool isHtmCancel() const { return flags[IsHtmCancel]; }
 
     bool

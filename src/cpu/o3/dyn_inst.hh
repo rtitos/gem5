@@ -165,6 +165,7 @@ class DynInst : public ExecContext, public RefCounted
         ReqMade,
         MemOpDone,
         HtmFromTransaction,
+        HtmStoreToLoadFwd,
         MaxFlags
     };
 
@@ -376,6 +377,9 @@ class DynInst : public ExecContext, public RefCounted
 
     /** The effective physical address. */
     Addr physEffAddr = 0;
+
+    /** Split-access 2nd effective physical address (HTM umu model). */
+    Addr physEffAddrSplit = 0;
 
     /** The memory request flags (from translation). */
     unsigned memReqFlags = 0;
@@ -631,6 +635,7 @@ class DynInst : public ExecContext, public RefCounted
     // hardware transactional memory
     bool isHtmStart() const { return staticInst->isHtmStart(); }
     bool isHtmStop() const { return staticInst->isHtmStop(); }
+    bool isHtmStopFence() const { return staticInst->isHtmStopFence(); }
     bool isHtmCancel() const { return staticInst->isHtmCancel(); }
     bool isHtmCmd() const { return staticInst->isHtmCmd(); }
 
@@ -683,6 +688,15 @@ class DynInst : public ExecContext, public RefCounted
             htmUid = -1;
             htmDepth = 0;
         }
+    }
+    /** Returns whether the load instruction obtained data from a
+        previous store */
+    bool isHtmStoreToLoadForwarding() { return instFlags[HtmStoreToLoadFwd]; }
+
+    void
+    setHtmStoreToLoadForwarding(bool val)
+    {
+        instFlags[HtmStoreToLoadFwd] = val;
     }
 
     /** Temporarily sets this instruction as a serialize before instruction. */

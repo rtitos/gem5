@@ -99,6 +99,8 @@ class BaseCPU(ClockedObject):
         PyBindMethod("totalInsts"),
         PyBindMethod("scheduleInstStop"),
         PyBindMethod("getCurrentInstCount"),
+        PyBindMethod("createLockstepChecker"),
+        PyBindMethod("openLockstepChecker"),
     ]
 
     @classmethod

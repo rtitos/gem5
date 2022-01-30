@@ -128,6 +128,9 @@ def parse_options():
     option("--dot-dvfs-config", metavar="FILE", default=None,
         help="Create DOT & pdf outputs of the DVFS configuration" + \
              " [Default: %default]")
+    option("--sim-info", metavar="FILE", default=None,
+        help="Read simulation configuration from file in outdir "
+             " and dump to output file for statistics ")
 
     # Debugging options
     group("Debugging Options")

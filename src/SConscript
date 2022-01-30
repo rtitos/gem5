@@ -1367,6 +1367,10 @@ def makeEnv(env, label, objsfx, strip=False, **kwargs):
     # builds.  The option doesn't affect gem5 built as a program
     if GetOption('without_python'):
         lib_sources = lib_sources.without_tag(new_env, 'python')
+    if GetOption('with_permisive_kernel_panics'):
+        new_env.Append(CCFLAGS='-DPERMISIVE_KERNEL_PANICS')
+        new_env.Append(LINKFLAGS='-DPERMISIVE_KERNEL_PANICS')
+
 
     static_objs = list([ s.static(new_env) for s in lib_sources ])
     shared_objs = list([ s.shared(new_env) for s in lib_sources ])

@@ -371,11 +371,13 @@
             //0x6: group12_Eb_Ib();
             0x6: decode MODRM_REG {
                 0x0: MOV(Eb,Ib);
+                0x7: XabortInst::xabort();
                 default: UD2();
             }
             //0x7: group12_Ev_Iz();
             0x7: decode MODRM_REG {
                 0x0: MOV(Ev,Iz);
+                0x7: XbeginInst::xbegin();
                 default: UD2();
             }
         }

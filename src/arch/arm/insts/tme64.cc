@@ -90,6 +90,7 @@ MicroTfence64::MicroTfence64(ExtMachInst machInst)
     flags[IsMicroop] = true;
     flags[IsReadBarrier] = true;
     flags[IsWriteBarrier] = true;
+    flags[IsHtmStopFence] = true;
 }
 
 Fault

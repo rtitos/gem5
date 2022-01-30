@@ -39,7 +39,9 @@
 
 #include "base/callback.hh"
 #include "base/output.hh"
+#include "mem/htm.hh"
 #include "mem/packet.hh"
+#include "mem/ruby/common/Global.hh"
 #include "mem/ruby/profiler/Profiler.hh"
 #include "mem/ruby/slicc_interface/AbstractController.hh"
 #include "mem/ruby/system/CacheRecorder.hh"
@@ -59,6 +61,9 @@ namespace ruby
 
 class Network;
 class AbstractController;
+class TransactionInterfaceManager;
+class XactValueChecker;
+class XactIsolationChecker;
 
 class RubySystem : public ClockedObject
 {
@@ -74,8 +79,13 @@ class RubySystem : public ClockedObject
     static uint32_t getMemorySizeBits() { return m_memory_size_bits; }
     static bool getWarmupEnabled() { return m_warmup_enabled; }
     static bool getCooldownEnabled() { return m_cooldown_enabled; }
+    static std::string getProtocol() { return m_protocol; }
+    // HTM-related performance bug
+    static bool enableL0DowngradeOnL1Gets()
+      { return m_l0_downgrade_on_l1_gets; }
 
     memory::SimpleMemory *getPhysMem() { return m_phys_mem; }
+    HTM *getHTM() { return m_htm; }
     Cycles getStartCycle() { return m_start_cycle; }
     bool getAccessBackingStore() { return m_access_backing_store; }
 
@@ -86,10 +96,24 @@ class RubySystem : public ClockedObject
         assert(m_profiler != NULL);
         return m_profiler;
     }
-
+    XactValueChecker*
+    getXactValueChecker()
+    {
+      assert(m_xactValueChecker != NULL);
+      return m_xactValueChecker;
+    }
+    XactIsolationChecker*
+    getXactIsolationChecker()
+    {
+      assert(m_xactIsolationChecker != NULL);
+      return m_xactIsolationChecker;
+    }
+    /*
     void regStats() override {
         ClockedObject::regStats();
+        m_profiler->regStats();
     }
+    */
     void collateStats() { m_profiler->collateStats(); }
     void resetStats() override;
 
@@ -105,6 +129,11 @@ class RubySystem : public ClockedObject
 
     void registerNetwork(Network*);
     void registerAbstractController(AbstractController*);
+    void registerTransactionInterfaceManager(TransactionInterfaceManager *mgr);
+    TransactionInterfaceManager* getTransactionInterfaceManager(int mgr_id);
+    std::vector<TransactionInterfaceManager*>
+        getTransactionInterfaceManagers();
+
     void registerMachineID(const MachineID& mach_id, Network* network);
     void registerRequestorIDs();
 
@@ -116,6 +145,7 @@ class RubySystem : public ClockedObject
         schedule(e, tick);
     }
 
+    std::vector<int> getLowestTimestampTransactionManager();
   private:
     // Private copy constructor and assignment operator
     RubySystem(const RubySystem& obj);
@@ -142,6 +172,8 @@ class RubySystem : public ClockedObject
     static bool m_warmup_enabled;
     static unsigned m_systems_to_warmup;
     static bool m_cooldown_enabled;
+    static std::string m_protocol;
+    static bool m_l0_downgrade_on_l1_gets;
     memory::SimpleMemory *m_phys_mem;
     const bool m_access_backing_store;
 
@@ -153,6 +185,10 @@ class RubySystem : public ClockedObject
     std::unordered_map<MachineID, unsigned> machineToNetwork;
     std::unordered_map<RequestorID, unsigned> requestorToNetwork;
     std::unordered_map<unsigned, std::vector<AbstractController*>> netCntrls;
+    HTM * m_htm;
+    std::vector<TransactionInterfaceManager *> m_xact_mgr_vec;
+    XactValueChecker* m_xactValueChecker;
+    XactIsolationChecker* m_xactIsolationChecker;
 
   public:
     Profiler* m_profiler;

@@ -88,6 +88,12 @@ Hdf5::begin()
 }
 
 void
+Hdf5::beginConfig(const std::string &file)
+{
+    begin();
+}
+
+void
 Hdf5::end()
 {
     assert(valid());

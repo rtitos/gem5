@@ -235,6 +235,8 @@ class Request
         // This separation is necessary to ensure the disjoint components
         // of the system work correctly together.
 
+        /** The request adds an address to the Rset of a HTM transaction */
+        HTM_ISOLATE                 = 0x0000100000000000,
         /**
          * These flags are *not* cleared when a Request object is
          * reused (assigned a new address).
@@ -245,7 +247,7 @@ class Request
         CLEAN | INVALIDATE;
 
     static const FlagsType HTM_CMD = HTM_START | HTM_COMMIT |
-        HTM_CANCEL | HTM_ABORT;
+        HTM_CANCEL | HTM_ABORT | HTM_ISOLATE;
 
     /** Requestor Ids that are statically allocated
      * @{*/
@@ -444,6 +446,9 @@ class Request
 
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
+
+    /** Whether the request did not complete in memory (was nacked) */
+    bool _nacked = false;
 
   public:
 
@@ -739,6 +744,18 @@ class Request
         _htmAbortCause = val;
     }
 
+    bool
+    wasNacked() const
+    {
+        return _nacked;
+    }
+
+    void
+    setNacked(bool val)
+    {
+        _nacked = val;
+    }
+
     /** Accessor for flags. */
     Flags
     getFlags()
@@ -756,6 +773,13 @@ class Request
     {
         assert(hasPaddr() || hasVaddr());
         _flags.set(flags);
+    }
+
+    void
+    clearFlags(Flags flags)
+    {
+        assert(privateFlags.isSet(VALID_PADDR|VALID_VADDR));
+        _flags.clear(flags);
     }
 
     void
@@ -958,11 +982,12 @@ class Request
     bool isHTMCommit() const { return _flags.isSet(HTM_COMMIT); }
     bool isHTMCancel() const { return _flags.isSet(HTM_CANCEL); }
     bool isHTMAbort() const { return _flags.isSet(HTM_ABORT); }
+    bool isHTMIsolate() const { return _flags.isSet(HTM_ISOLATE); }
     bool
     isHTMCmd() const
     {
         return (isHTMStart() || isHTMCommit() ||
-                isHTMCancel() || isHTMAbort());
+                isHTMCancel() || isHTMAbort() || isHTMIsolate());
     }
 
     bool

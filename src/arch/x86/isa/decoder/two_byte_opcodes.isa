@@ -91,6 +91,8 @@
                     0x3: decode MODRM_RM {
                         0x0: xgetbv();
                         0x1: xsetbv();
+                        0x5: Inst::XEND();
+                        0x6: XtestInst::xtest();
                     }
                     default: decode MODE_SUBMODE {
                         0x0: Inst::LGDT(M);
@@ -354,14 +356,17 @@
             0x6: Inst::UD2();
             0x7: getsec();
         }
-        0x07: decode OPCODE_OP_BOTTOM3 {
-            0x0: M5InternalError::error(
-                {{"Three byte opcode shouldn't be handled by "
-                  "two_byte_opcodes.isa!"}});
-            0x2: M5InternalError::error(
-                {{"Three byte opcode shouldn't be handled by "
-                  "two_byte_opcodes.isa!"}});
-            default: UD2();
+        0x07: decode VEX_PRESENT {
+            0x0: decode OPCODE_OP_BOTTOM3 {
+                0x0: M5InternalError::error(
+                    {{"Three byte opcode shouldn't be handled by "
+                      "two_byte_opcodes.isa!"}});
+                0x2: M5InternalError::error(
+                    {{"Three byte opcode shouldn't be handled by "
+                      "two_byte_opcodes.isa!"}});
+                default: UD2();
+            }
+            0x1: UD2();
         }
         format Inst {
             0x08: decode OPCODE_OP_BOTTOM3 {

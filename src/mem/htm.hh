@@ -1,4 +1,7 @@
 /*
+ * Copyright (C) 2016-2021 Rubén Titos <rtitos@um.es>
+ * Universidad de Murcia
+ *
  * Copyright (c) 2020 ARM Limited
  * All rights reserved
  *
@@ -38,11 +41,96 @@
 #ifndef __MEM_HTM_HH__
 #define __MEM_HTM_HH__
 
+#include <cassert>
 #include <map>
 #include <string>
+#include <vector>
+
+#include "params/HTM.hh"
+#include "sim/clocked_object.hh"
 
 namespace gem5
 {
+
+class HTMStats
+{
+public:
+    enum AbortCause
+    {
+        Conflict = 0,
+        L0Capacity,
+        L1Capacity,
+        L2Capacity,
+        PageFault,
+        Syscall,
+        Interrupt,
+        Explicit,
+        FallbackLock,
+        ExplicitFallbackLock,
+        WrongL0,
+        ConflictStale,
+        Undefined,
+        NumAbortCauses
+    };
+
+    enum XBeginArgsType
+    {
+        Xid,
+        NumRetries,
+        NumXBeginArgsTypes
+    };
+
+    static int MaxXidStats;
+    static const int MaxLogFilterSize = 8; // Max log filter addresses
+
+    static int to_stats_xid(int xid) {
+      // Set the xid in m_stats according to the maximum number of xid
+      // passed as command line option to the simulator. By default:
+      // per-xid statistics subsumed into a single xid (0)
+        if (xid < HTMStats::MaxXidStats)
+            return xid;
+        else {
+            return HTMStats::MaxXidStats - 1;
+        }
+    }
+    static const std::string AbortCause_to_string(AbortCause cause) {
+        switch(cause) {
+        case Conflict:
+            return "Conflict";
+        case L0Capacity:
+            return "L0Capacity";
+        case L1Capacity:
+            return "L1Capacity";
+        case L2Capacity:
+            return "L2Capacity";
+        case PageFault:
+            return "PageFault";
+        case Syscall:
+            return "Syscall";
+        case Interrupt:
+            return "Interrupt";
+        case Explicit:
+            return "Explicit";
+        case FallbackLock:
+            return "FallbackLock";
+        case ExplicitFallbackLock:
+            return "ExplicitFallbackLock";
+        case WrongL0:
+            return "WrongL0";
+        case ConflictStale:
+            return "ConflictStale";
+        case Undefined:
+            return "Undefined";
+        case NumAbortCauses:
+        default:
+            {
+            assert(0);
+            return "Error";
+            }
+        }
+    }
+};
+
 
 enum class HtmFailureFaultCause : int
 {
@@ -53,6 +141,24 @@ enum class HtmFailureFaultCause : int
     EXCEPTION,
     MEMORY,
     OTHER,
+    DISABLED, // htm speculation disabled: lockstep debugging facility
+    // The following causes are not visible to the ISA, only used for
+    // statistics collection. Each must fall in one of the above
+    // categories
+    INTERRUPT,
+    /* LSQ: conflicting snoop seen by CPU for trans load not yet in
+       Rset, caused either by remote requests or local replacements */
+    LSQ,
+    /* Precise abort cause, set by xact mgr based on abortcause */
+    SIZE_RSET,
+    SIZE_WSET,
+    SIZE_L1PRIV,
+    SIZE_LLC,
+    SIZE_WRONG_CACHE,
+    EXPLICIT_FALLBACKLOCK,
+    MEMORY_FALLBACKLOCK,
+    MEMORY_STALEDATA,
+    MEMORY_FALSESHARING,
     NUM_CAUSES
 };
 
@@ -64,11 +170,68 @@ enum class HtmCacheFailure
     FAIL_OTHER,  // failed due other circumstances
 };
 
+/** Convert precise failure cause (stats) to ISA visible cause  */
+HtmFailureFaultCause
+getIsaVisibleHtmFailureCause(HtmFailureFaultCause cause);
+
 /** Convert enum into string to be used for debug purposes */
 std::string htmFailureToStr(HtmFailureFaultCause cause);
 
 /** Convert enum into string to be used for debug purposes */
 std::string htmFailureToStr(HtmCacheFailure rc);
+
+class HtmPolicyStrings {
+public:
+  static const std::string requester_wins;
+  static const std::string committer_wins;
+  static const std::string requester_stalls;
+  static const std::string magic;
+  static const std::string token;
+  static const std::string requester_stalls_cda_base;
+  static const std::string requester_stalls_cda_base_ntx;
+  static const std::string requester_stalls_cda_hybrid;
+  static const std::string requester_stalls_cda_hybrid_ntx;
+};
+
+class HTM : public ClockedObject
+{
+  public:
+    const HTMParams &_params;
+    Addr m_fallbackLockPhysicalAddress;
+    Addr m_fallbackLockVirtualAddress;
+
+    PARAMS(HTM);
+    HTM(const Params &p);
+    Addr getFallbackLockPAddr() { return m_fallbackLockPhysicalAddress; }
+    void setFallbackLockPAddr(Addr addr) {
+        if (m_fallbackLockPhysicalAddress == Addr(0)) {
+            m_fallbackLockPhysicalAddress = addr;
+        } else {
+            assert(m_fallbackLockPhysicalAddress == addr);
+        }
+    }
+    Addr getFallbackLockVAddr() { return m_fallbackLockVirtualAddress; }
+    virtual void notifyPseudoInst() {};
+    virtual void notifyPseudoInstWork(bool begin, int cpuId, uint64_t workid) {};
+    virtual bool setupLog(int cpuId, Addr addr) {
+        panic("Not implemented");
+    };
+    virtual void endLogUnroll(int cpuId) {
+        panic("Not implemented");
+    };
+    virtual int getLogNumEntries(int cpuId) {
+        panic("Not implemented");
+    };
+    void requestCommitToken(int cpuId);
+    void releaseCommitToken(int cpuId);
+    void removeCommitTokenRequest(int cpuId);
+    bool existCommitTokenRequest(int cpuId);
+    int getTokenOwner();
+    int getNumTokenRequests();
+
+private:
+    std::vector<int>  m_commitTokenRequestList;
+};
 
 } // namespace gem5
 

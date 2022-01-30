@@ -51,6 +51,7 @@
 #include "cpu/thread_context.hh"
 #include "debug/PseudoInst.hh"
 #include "sim/guest_abi.hh"
+#include "sim/system.hh"
 
 namespace gem5
 {
@@ -116,6 +117,11 @@ pseudoInstWork(ThreadContext *tc, uint8_t func, uint64_t &result)
     DPRINTF(PseudoInst, "pseudo_inst::pseudoInst(%i)\n", func);
 
     result = 0;
+
+    HTM *htm = tc->getSystemPtr()->getHTM();
+    if (htm != nullptr && htm->params().profiler) {
+        htm->notifyPseudoInst();
+    }
 
     switch (func) {
       case M5OP_ARM:

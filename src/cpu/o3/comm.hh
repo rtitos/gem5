@@ -195,6 +195,7 @@ struct TimeStruct
 
         bool squash; // *F, D, R, I
         bool robSquashing; // *F, D, R, I
+        bool squashFromAbort;
 
         /// Rename should re-read number of free rob entries
         bool usedROB; // *R

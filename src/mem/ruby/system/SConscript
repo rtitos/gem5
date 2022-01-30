@@ -60,6 +60,7 @@ Source('DMASequencer.cc')
 if env['BUILD_GPU']:
     Source('GPUCoalescer.cc')
 Source('HTMSequencer.cc')
+Source('TransactionalSequencer.cc')
 Source('RubyPort.cc')
 Source('RubyPortProxy.cc')
 Source('RubySystem.cc')

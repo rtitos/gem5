@@ -69,6 +69,7 @@ class Hdf5 : public Output
 
   public: // Output interface
     void begin() override;
+    void beginConfig(const std::string &file) override;
     void end() override;
     bool valid() const override;
 

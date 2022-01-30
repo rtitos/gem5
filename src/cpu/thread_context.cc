@@ -46,6 +46,7 @@
 #include "base/trace.hh"
 #include "config/the_isa.hh"
 #include "cpu/base.hh"
+#include "cpu/checker/htm_checker.hh"
 #include "debug/Context.hh"
 #include "debug/Quiesce.hh"
 #include "mem/port.hh"
@@ -264,6 +265,56 @@ takeOverFrom(ThreadContext &ntc, ThreadContext &otc)
         assert(ntc.getSystemPtr() == otc.getSystemPtr());
 
     otc.setStatus(ThreadContext::Halted);
+}
+
+bool
+ThreadContext::forceHtmDisabled() {
+    // Hardware transactional memory speculation disabled:
+    // htm_start instruction invariably returns code indicating
+    // transaction has aborted ("Disabled" cause). May be used to
+    // disable speculation from the simulator side, to run HTM
+    // workloads reling exclusively on the fallback lock
+
+    // This functionality is required by lockstep HTM debugging in
+    // order to "stall" replayer simulation on a transaction until
+    // commit granted by recorder
+    if (getSystemPtr()->getLockstepMode() == enums::replay) {
+        assert(getSystemPtr()->getHTM() != nullptr);
+        return true;
+    } else if (getSystemPtr()->getHTM() != nullptr) {
+        return getSystemPtr()->getHTM()->params().disable_speculation;
+    } else {
+        return false;
+    }
+}
+bool
+ThreadContext::forceHtmRetryStatusBit() {
+    // Forces the ISA specific "retry" bit to be set in the returned
+    // abort status. Used by lockstep execution (replayer) to spin on
+    // the htm_start instruction until htm checker grants permission
+    // based on commit order provided by recoder
+    if (!getSystemPtr()->getHTM() ||
+        getSystemPtr()->getHTM()->params().disable_speculation) {
+        assert(getSystemPtr()->getLockstepMode() == enums::disabled);
+        return false;
+    } else if (getSystemPtr()->getLockstepMode() == enums::replay) {
+        uint64_t xid = 0; // TODO: Pass as param or remove
+        return (!getCpuPtr()->htmChecker->canReplay(xid));
+    } else {
+        return false;
+    }
+}
+
+int
+ThreadContext::getHtmUndoLogSize() {
+    // LogTM support: indicate abort handler that complete abort
+    // requires unrolling the undo log
+    if (getSystemPtr()->getHTM() &&
+        !getSystemPtr()->getHTM()->params().lazy_vm) {
+        return getSystemPtr()->getHTM()->getLogNumEntries(cpuId());
+    } else {
+        return 0;
+    }
 }
 
 } // namespace gem5

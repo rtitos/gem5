@@ -40,6 +40,7 @@
 #include "arch/arm/regs/int.hh"
 #include "arch/arm/regs/misc.hh"
 #include "cpu/thread_context.hh"
+#include "debug/HtmArch.hh"
 
 namespace gem5
 {
@@ -150,6 +151,25 @@ ArmISA::HTMCheckpoint::restore(ThreadContext *tc, HtmFailureFaultCause cause)
         // case HtmFailureFaultCause_DEBUG:
         //     replaceBits(error_code, 22, 1);
         //     break;
+        // case HtmFailureFaultCause::INTERRUPT:
+        //     replaceBits(error_code, 23, 1);
+        //     break;
+        // case HtmFailureFaultCause::TRIVIAL
+        //     replaceBits(error_code, 24, 1);
+        //     break;
+      case HtmFailureFaultCause::DISABLED:
+          // Bits 63-24: Reserved
+          // See gem5_path/benchmarks/benchmarks-htm/libs/isa/aarch64/abort_status.h
+          // _TMFAILURE_DISABLED is bit 25
+        replaceBits(error_code, 25, 1);
+        assert(tc->forceHtmDisabled());
+        if (tc->forceHtmRetryStatusBit()) {
+            // Lockstep support: Abort handler must spin on the
+            // htm_start instruction when bit 24 in the abort status is
+            // set, until the retry bit is unset (then acquire lock)
+            retry = true;
+        }
+        break;
       default:
         panic("Unknown HTM failure reason\n");
     }
@@ -158,6 +178,16 @@ ArmISA::HTMCheckpoint::restore(ThreadContext *tc, HtmFailureFaultCause cause)
         replaceBits(error_code, 15, 1);
     if (interrupt)
         replaceBits(error_code, 23, 1);
+    if (tc->getHtmUndoLogSize() > 0) {
+        // See gem5_path/benchmarks/benchmarks-htm/libs/isa/aarch64/abort_status.h
+        // _TMFAILURE_UNDO_LOG is bit 26
+        replaceBits(error_code, 26, 1);
+        uint64_t logsize = tc->getHtmUndoLogSize();
+        replaceBits(error_code, 63, 32, logsize);
+        DPRINTF(HtmArch, "Setting undo log bit in abort status, log size :%d\n",
+                logsize);
+
+    }
     tc->setIntReg(rt, error_code);
 
     // set next PC

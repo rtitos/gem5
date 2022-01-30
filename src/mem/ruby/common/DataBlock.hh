@@ -89,6 +89,7 @@ class DataBlock
     void atomicPartial(const DataBlock & dblk, const WriteMask & mask);
     bool equal(const DataBlock& obj) const;
     void print(std::ostream& out) const;
+    std::string toString() const;
 
   private:
     void alloc();

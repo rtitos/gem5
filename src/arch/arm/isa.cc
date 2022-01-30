@@ -486,6 +486,12 @@ ISA::takeOverFrom(ThreadContext *new_tc, ThreadContext *old_tc)
 {
     tc = new_tc;
     setupThreadContext();
+    if (haveTME) {
+        // Create another HTM checkpoint when switching CPUs, or else
+        // move it from the old tc to new tc
+        std::unique_ptr<BaseHTMCheckpoint> cpt(new HTMCheckpoint());
+        tc->setHtmCheckpointPtr(std::move(cpt));
+    }
 }
 
 static void

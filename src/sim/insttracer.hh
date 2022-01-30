@@ -117,6 +117,7 @@ class InstRecord
     /** @ingroup data
      * What size of data was written?
      */
+  public:
     enum DataStatus
     {
         DataInvalid = 0,
@@ -128,7 +129,7 @@ class InstRecord
         DataVec = 5,
         DataVecPred = 6
     } data_status;
-
+  protected:
     /** @ingroup memory
      * Are the memory fields in the record valid?
      */

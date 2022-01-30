@@ -632,6 +632,9 @@ RubyPort::MemResponsePort::isPhysMemAddress(PacketPtr pkt) const
 {
     RubyPort *ruby_port = static_cast<RubyPort *>(&owner);
     Addr addr = pkt->getAddr();
+    if (pkt->req->isHTMCmd()) {
+        return true;
+    }
     return (ruby_port->system->isMemAddr(addr) && !isShadowRomAddress(addr))
            || ruby_port->system->isDeviceMemAddr(pkt);
 }

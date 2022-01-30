@@ -72,6 +72,7 @@ BaseKvmCPU::BaseKvmCPU(const BaseKvmCPUParams &params)
       threadContextDirty(true),
       kvmStateDirty(false),
       vcpuID(vm.allocVCPUID()), vcpuFD(-1), vcpuMMapSize(0),
+      threadStarted(false),
       _kvmRun(NULL), mmioRing(NULL),
       pageSize(sysconf(_SC_PAGE_SIZE)),
       tickEvent([this]{ tick(); }, "BaseKvmCPU tick",
@@ -242,6 +243,8 @@ BaseKvmCPU::startupThread()
         dynamic_cast<const BaseKvmCPUParams &>(params());
 
     vcpuThread = pthread_self();
+
+    threadStarted = true;
 
     // Setup signal handlers. This has to be done after the vCPU is
     // created since it manipulates the vCPU signal mask.
@@ -475,7 +478,9 @@ void
 BaseKvmCPU::wakeup(ThreadID tid)
 {
     DPRINTF(Kvm, "wakeup()\n");
-    // This method might have been called from another
+    if (!threadStarted) return;
+
+      // This method might have been called from another
     // context. Migrate to this SimObject's event queue when
     // delivering the wakeup signal.
     EventQueue::ScopedMigration migrate(eventQueue());

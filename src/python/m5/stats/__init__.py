@@ -402,6 +402,8 @@ def dump(roots=None):
                 output.dump(all_roots)
         else:
             if output.valid():
+                if m5.options.sim_info != None:
+                    output.beginConfig(m5.options.sim_info)
                 output.begin()
                 _dump_to_visitor(output, roots=all_roots)
                 output.end()

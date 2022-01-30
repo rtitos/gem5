@@ -67,6 +67,7 @@ namespace ruby
 
 class RubyRequest;
 class AddressProfiler;
+class XactProfiler;
 
 class Profiler
 {
@@ -77,8 +78,9 @@ class Profiler
     RubySystem *m_ruby_system;
 
     void wakeup();
-    void regStats();
+    void resetStats();
     void collateStats();
+    void printProfilers();
 
     AddressProfiler* getAddressProfiler() { return m_address_profiler_ptr; }
     AddressProfiler* getInstructionProfiler() { return m_inst_profiler_ptr; }
@@ -89,6 +91,11 @@ class Profiler
     bool getHotLines() const { return m_hot_lines; }
     bool getAllInstructions() const { return m_all_instructions; }
 
+
+    // Begin Hardware Transactional Memory Code
+    bool hasXactProfiler() const { return m_xact_profiler; }
+    XactProfiler*   getXactProfiler() {
+      return m_xact_profiler_ptr;}
   private:
     // Private copy constructor and assignment operator
     Profiler(const Profiler& obj);
@@ -96,6 +103,9 @@ class Profiler
 
     AddressProfiler* m_address_profiler_ptr;
     AddressProfiler* m_inst_profiler_ptr;
+
+    // HTM profiling
+    XactProfiler* m_xact_profiler_ptr;
 
     struct ProfilerStats : public statistics::Group
     {
@@ -168,6 +178,8 @@ class Profiler
               m_missTypeMachLatencyHistCoalsr;
         } perRequestTypeMachineTypeStats;
 
+        statistics::Scalar m_ruby_cycles;
+        
         statistics::Histogram delayHistogram;
         std::vector<statistics::Histogram *> delayVCHistogram;
 
@@ -193,6 +205,7 @@ class Profiler
     const bool m_hot_lines;
     const bool m_all_instructions;
     const uint32_t m_num_vnets;
+    bool m_xact_profiler;
 
 
   public:

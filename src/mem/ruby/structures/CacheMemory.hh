@@ -79,7 +79,7 @@ class CacheMemory : public SimObject
     // Public Methods
     // perform a cache access and see if we hit or not.  Return true on a hit.
     bool tryCacheAccess(Addr address, RubyRequestType type,
-                        DataBlock*& data_ptr);
+                        DataBlock*& data_ptr, bool touch = true);
 
     // similar to above, but doesn't require full access check
     bool testCacheAccess(Addr address, RubyRequestType type,
@@ -130,6 +130,12 @@ class CacheMemory : public SimObject
     void setMRU(Addr address);
     void setMRU(Addr addr, int occupancy);
     void setMRU(AbstractCacheEntry* entry);
+    void setTransactionManager(TransactionInterfaceManager *xact_mgr) {
+      m_xact_mgr = xact_mgr;
+    };
+    TransactionInterfaceManager* getTransactionManager() {
+      return m_xact_mgr;
+    };
     int getReplacementWeight(int64_t set, int64_t loc);
 
     // Functions for locking and unlocking cache lines corresponding to the
@@ -152,6 +158,11 @@ class CacheMemory : public SimObject
     // hardware transactional memory
     void htmAbortTransaction();
     void htmCommitTransaction();
+    // LogTM (eager versioning)
+    void setHtmLogPending (Addr addr, bool val);
+    bool isHtmLogPending (Addr addr) const;
+    void checkHtmLogPendingClear() const;
+
 
   public:
     int getCacheSize() const { return m_cache_size; }
@@ -183,6 +194,10 @@ class CacheMemory : public SimObject
 
     /** We use the replacement policies from the Classic memory system. */
     replacement_policy::Base *m_replacementPolicy_ptr;
+
+    // HTM
+    TransactionInterfaceManager * m_xact_mgr;
+    bool m_htm_aware_replacements;
 
     BankedArray dataArray;
     BankedArray tagArray;

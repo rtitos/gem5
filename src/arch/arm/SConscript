@@ -40,6 +40,8 @@
 
 Import('*')
 
+from gem5_scons import warning, error
+
 if env['TARGET_ISA'] == 'arm':
 # Workaround for bug in SCons version > 0.97d20071212
 # Scons bug id: 2006 M5 Bug id: 308
@@ -66,9 +68,11 @@ if env['TARGET_ISA'] == 'arm':
     Source('insts/fplib.cc')
     Source('insts/crypto.cc')
     Source('insts/tme64.cc')
-    if env['PROTOCOL'] == 'MESI_Three_Level_HTM':
+    if env['PROTOCOL'] == 'MESI_Three_Level_HTM' or \
+       env['PROTOCOL'] == 'MESI_Three_Level_HTM_umu':
         Source('insts/tme64ruby.cc')
     else:
+        warning('ARM TME support requires Ruby protocol')
         Source('insts/tme64classic.cc')
     Source('interrupts.cc')
     Source('isa.cc')

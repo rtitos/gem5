@@ -1,0 +1,275 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(dirname "$(readlink -fm "$0")")"
+SCRIPT_COMMAND="$0"
+set -o nounset
+set -o pipefail
+set -o errexit
+trap 'echo "$SCRIPT_COMMAND: error $? at line $LINENO"' ERR
+
+error_and_exit() {
+    echo $'\e[31m'"$@"$'\e[0m' 1>&2
+    exit 1
+}
+
+help() {
+    echo "Use: $SCRIPT_COMMAND [OPTIONS]...
+
+    --img F:    
+      Add image F as a block device in the server. The first images
+      will be added as /dev/sdb, then /dev/sdc, etc. Filesystems in
+      the whole image or in partitions will be mounted in /mnt/sdX.
+      --img options must precede all others. The image will be
+      modified (you need write permission to the file).
+
+    --upload:
+      The next transfers will be from the host to the virtual sever
+      (images). This is the default.
+
+    --download:
+      The next transfers will be from the virtual sever (images) to
+      the host.
+
+    --src X --copy-to Y: 
+      Copy from X to Y. X can be a file or directory, and Y must be a
+      directory. The destination will be named \"Y/\$(basename
+      X)\". The transfer will be done using tar.
+
+    --src X --rsync-to Y: 
+      rsync -rlptD --delete from X to Y. X and Y can be a files or
+      directories, See rsync man page for details.
+
+    --command C:
+      Executes C as a bash command in the server.
+
+    --script F:
+      Executes file F as a bash script in the server.
+
+    --bash:
+      Open an interactive shell to the server.
+
+    Options are processed in order.
+
+    Examples:
+
+     $(basename "$SCRIPT_COMMAND") --img x86_64-benchmarks.img --command \"mkdir -p /mnt/sdb1/benchmarks-htm/stamp/\" --src ../../benchmarks/benchmarks-htm/stamp/ --rsync-to=/mnt/sdb1/benchmarks-htm/stamp/
+
+     $(basename "$SCRIPT_COMMAND") --img ubuntu-18-04.img --bash
+"
+}
+
+if [[ $# -eq 0 ]] ; then
+    help
+    exit 0
+fi
+
+SERVER_IMG_LOCATIONS=("${SCRIPT_DIR}/qemu-server.img" "${SCRIPT_DIR}/../other/qemu-server.img" "/home/users/caps/qemu-server.img")
+for i in "${SERVER_IMG_LOCATIONS[@]}" ; do
+    if [[ -f "$i" ]] ; then
+        SERVER_IMG="${SERVER_IMG:-$i}"
+    fi
+done
+[[ -n "${SERVER_IMG:-}" ]] || error_and_exit "Server image not found. Tried: ${SERVER_IMG_LOCATIONS[@]}"
+[[ -f "$SERVER_IMG" ]] || error_and_exit "Server image '$SERVER_IMG' not found."
+
+find_free_port() {
+    MIN_PORT=20000
+    MAX_PORT=65530
+    comm -23 \
+         <(seq "$MIN_PORT" "$MAX_PORT" | sort) \
+         <(ss -Htan | tr -s " " | cut -d" " -f4 | cut -d':' -f2 | sort -u) \
+        | shuf | head -n 1 || true # true needed due to pipefail
+}
+
+images_args() {
+    local index=1
+    for i in ${IMAGES[@]} ; do
+        printf -- "-drive file=%q,format=raw,index=%d,media=disk " "$i" "$index"
+        index=$((index + 1))
+    done
+}
+
+PORT=$(find_free_port)
+start_server() {
+    echo "Starting server at port $PORT..."
+    local images_args=( )
+    QEMU_PIDFILE="$(mktemp)"
+    # TODO: remove both -net… when qemu 6 is available, it is enough with -nic user,hostfwd=::9888-:22
+    qemu-system-x86_64 -drive file="$SERVER_IMG",format=raw,index=0,media=disk,snapshot=on \
+         $(images_args) \
+         -m 4096 -enable-kvm \
+         -net user,hostfwd=::$PORT-:22 -net nic \
+         -display none \
+         -daemonize -pidfile "$QEMU_PIDFILE" \
+         2> >(grep -v "warning: host doesn't support requested feature: CPUID.01H:ECX.vmx" 1>&2) 
+    QEMU_PID="$(cat "$QEMU_PIDFILE")"
+    rm "$QEMU_PIDFILE"
+    trap shutdown_server EXIT
+    
+    local SERVER_CONNECTION_TIMEOUT=45 # TODO: configurable?
+    local start="$(date +%s)"
+    local server_ping=""
+    while [[ "$server_ping" != "ping"
+             && $(( $(date +%s) - start)) -lt $SERVER_CONNECTION_TIMEOUT ]] ; do
+        server_ping="$(ssh -o NoHostAuthenticationForLocalhost=yes -o ForwardX11=no root@127.0.0.1 -o ConnectTimeout=1 -o ConnectionAttempts=$(( SERVER_CONNECTION_TIMEOUT - ($(date +%s) - start))) -p $PORT -- echo ping 2> /dev/null || true)"
+    done
+
+    if [[ "$server_ping" == "ping" ]] ; then
+        echo "Server accepting ssh connections at port $PORT."
+    else
+        (
+            # Ensure tthat the VM is killed 
+            kill -TERM "$QEMU_PID" &> /dev/null || true
+            sleep 5
+            kill -KILL "$QEMU_PID" &> /dev/null || true
+        ) &
+        error_and_exit "Could not connect to the virtual server after $SERVER_CONNECTION_TIMEOUT seconds. It is taking too much time to start or there is some other problem."
+    fi
+}
+
+in_server() {
+    ssh -o NoHostAuthenticationForLocalhost=yes -o ForwardX11=no root@127.0.0.1 -p $PORT -T -- "$(for i in "$@" ; do printf "%q " "$i" ; done)"
+}
+
+in_server_interactive() {
+    ssh -o NoHostAuthenticationForLocalhost=yes -o ForwardX11=no root@127.0.0.1 -p $PORT
+}
+
+to_server_copy() {
+    local src="$1" # TODO: BUG: is src is a symlink and its target name is different from the link name, the destination will be named after the target
+    local dst="$2"
+    local rsrc="$(realpath "$src")"
+    pushd "$(dirname "$rsrc")" > /dev/null
+    tar c "$(basename "$rsrc")" | in_server bash -c "mkdir -p \"$dst\" && tar x -C \"$dst\""
+    popd  > /dev/null
+}
+
+from_server_copy() {
+    local src="$1"
+    local dst="$2"
+    in_server bash -c "cd \"$(dirname "$src")\" && tar c \"$(basename "$src")\"" | { mkdir -p "$dst" && tar x -C "$dst" ; }
+}
+
+to_server_rsync() {
+    local src="$1"
+    local dst="$2"
+    rsync -rlptD --delete \
+          -e "ssh -p $PORT -o NoHostAuthenticationForLocalhost=yes -o ForwardX11=no" \
+          "$src" "root@127.0.0.1:${dst}"
+}
+
+from_server_rsync() {
+    local src="$1"
+    local dst="$2"
+    rsync -rlptD --delete \
+          -e "ssh -p $PORT -o NoHostAuthenticationForLocalhost=yes -o ForwardX11=no" \
+          "root@127.0.0.1:${src}" "$dst"
+}
+
+shutdown_server() {
+    in_server poweroff &> /dev/null || true
+    (
+        sleep 15
+        # Ensure that the VM is killed 
+        kill -TERM "$QEMU_PID" &> /dev/null || true
+        sleep 5
+        kill -KILL "$QEMU_PID" &> /dev/null || true
+    ) &
+    while [[ -d "/proc/$QEMU_PID" ]] ; do
+        true # wait for qemu to finish
+    done
+}
+
+mount_all_images_in_server() {
+    cat <<'EOF' | in_server bash -s
+    rmdir /mnt/sd* &> /dev/null || true
+    for i in /dev/sd[b-z] ; do
+        if [[ -b ${i}1 ]] ; then
+            # at least one partition
+            for j in ${i}?* ; do
+                mkdir -p "/mnt/$(basename $j)"
+                mount -v $j "/mnt/$(basename $j)" || rmdir "/mnt/$(basename $i)" &> /dev/null || true
+            done
+        elif [[ -b ${i} ]] ; then
+            # no partitions, try to mount whole disk
+            mkdir -p "/mnt/$(basename $i)"
+            mount -v $i "/mnt/$(basename $i)" || rmdir "/mnt/$(basename $i)" &> /dev/null || true
+        fi
+    done
+EOF
+    true
+}
+
+# list of disk images for qemu
+IMAGES=()
+
+ARGS=$(getopt -n "$SCRIPT_COMMAND" --options "" --long "img:,src:,copy-to:,rsync-to:,command:,script:,bash,download,upload" -- "$@" || { help 1>&2 ; error_and_exit "Invalid options." ; })
+eval set -- "$ARGS"
+
+direction=upload
+server_started=no
+while [[ $# -gt 0 ]] ; do
+    if [[ "$1" !=  "--img" && "$server_started" == "no" ]] ; then
+        start_server
+        server_started=yes
+        mount_all_images_in_server
+    fi
+    if [[ "$1" == "--img" ]] ; then
+        if [[ "$server_started" == "no" ]] ; then
+            shift
+            IMAGES=("${IMAGES[@]}" "$1")
+        else
+            error_and_exit "--img options must appear before all others ($@)."
+        fi
+    elif [[ "$1" == "--upload" ]] ; then
+        direction=upload
+    elif [[ "$1" == "--download" ]] ; then
+        direction=download
+    elif [[ "$1" == "--src" ]] ; then
+        shift
+        src="$1"
+    elif [[ "$1" == "--copy-to" ]] ; then
+        if [[ -n "${src:-}" ]] ; then
+            shift
+            echo "Copying '$src' to '$1' ($direction)"
+            if [[ "$direction" == "upload" ]] ; then
+                to_server_copy "$src" "$1"
+            else
+                from_server_copy "$src" "$1"
+            fi
+            unset src
+        else
+            error_and_exit "Each --copy-to option needs to be preceded by a corresponding --src option."
+        fi
+    elif [[ "$1" == "--rsync-to" ]] ; then
+        if [[ -n "${src:-}" ]] ; then
+            shift
+            echo "Syncing '$src' to '$1' ($direction)"
+            if [[ "$direction" == "upload" ]] ; then
+                to_server_rsync "$src" "$1"
+            else
+                from_server_rsync "$src" "$1"
+            fi
+            unset src
+        else
+            error_and_exit "Each --rsync-to option needs to be preceded by a corresponding --src option."
+        fi
+    elif [[ "$1" == "--command" ]] ; then
+        shift
+        echo "Running '$1'"
+        in_server bash -c "$1"
+    elif [[ "$1" == "--script" ]] ; then
+        shift
+        echo "Running script '$1'"
+        cat "$1" | in_server bash -s
+    elif [[ "$1" == "--bash" ]] ; then
+        in_server_interactive
+    elif [[ "$1" == "--" ]] ; then
+        true  # ignore
+    else
+        error_and_exit "Unrecognized option '$1'"
+    fi
+    shift
+done
+
+shutdown_server

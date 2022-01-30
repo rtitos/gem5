@@ -133,6 +133,11 @@ class RubyHTMSequencer(RubySequencer):
    cxx_class = 'gem5::ruby::HTMSequencer'
    cxx_header = "mem/ruby/system/HTMSequencer.hh"
 
+class RubyTransactionalSequencer(RubySequencer):
+   type = 'RubyTransactionalSequencer'
+   cxx_class = 'gem5::ruby::TransactionalSequencer'
+   cxx_header = "mem/ruby/system/TransactionalSequencer.hh"
+
 class DMASequencer(RubyPort):
    type = 'DMASequencer'
    cxx_header = "mem/ruby/system/DMASequencer.hh"

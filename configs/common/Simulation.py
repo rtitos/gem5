@@ -110,6 +110,14 @@ def setWorkCountOptions(system, options):
         system.work_begin_ckpt_count = options.work_begin_checkpoint_count
     if options.work_cpus_checkpoint_count != None:
         system.work_cpus_ckpt_count = options.work_cpus_checkpoint_count
+    if options.lockstep_mode != None:
+        if (options.lockstep_mode == 'record' or
+            options.lockstep_mode == 'replay'):
+            system.lockstep_mode = options.lockstep_mode
+            if options.lockstep_fifopath != None:
+                system.lockstep_fifopath = options.lockstep_fifopath
+    if options.checkpoint_m5sum_kvm_hack != None:
+        system.checkpoint_m5sum_kvm_hack = options.checkpoint_m5sum_kvm_hack
 
 def findCptDir(options, cptdir, testsys):
     """Figures out the directory from which the checkpointed state is read.
@@ -620,6 +628,24 @@ def run(options, root, testsys, cpu_class):
     # call simulate() directly. --initialize-only is used to indicate this.
     if options.initialize_only:
         return
+
+    if options.lockstep_mode != None:
+        assert(switch_cpus == None)
+        # Support for lockstep execution: set lockstep mode for all
+        # detailed phase CPUS, create fifos after objects instantiated,
+        # and open fifos
+        if (options.lockstep_mode == 'record' or
+            options.lockstep_mode == 'replay'):
+            # Create lockstep manager (creates and opens commit order fifo)
+            testsys.setupLockstepManager(options.lockstep_mode)
+            for i in range(np):
+                # First, recorders must create the value fifos
+                if options.lockstep_mode == 'record':
+                    testsys.cpu[i].createLockstepChecker()
+
+            # Then both recorder and replayers open the value fifos
+            for i in range(np):
+                testsys.cpu[i].openLockstepChecker()
 
     # Handle the max tick settings now that tick frequency was resolved
     # during system instantiation

@@ -123,6 +123,10 @@ AddOption('--with-asan', action='store_true',
           help='Build with Address Sanitizer if available')
 AddOption('--with-systemc-tests', action='store_true',
           help='Build systemc tests')
+AddOption('--with-permisive-kernel-panics',
+          dest='with_permisive_kernel_panics',
+          action='store_true',
+          help='Build treating kernel panics as warnings')
 
 # Imports of gem5_scons happen here since it depends on some options which are
 # declared above.

@@ -43,6 +43,7 @@
 
 #include "arch/vecregs.hh"
 #include "config/the_isa.hh"
+#include "cpu/checker/htm_checker.hh"
 #include "debug/O3CPU.hh"
 
 namespace gem5
@@ -302,6 +303,9 @@ ThreadContext::htmAbortTransaction(uint64_t htmUid,
     cpu->htmSendAbortSignal(thread->threadId(), htmUid, cause);
 
     conditionalSquash();
+
+    // Notify htm checker
+    cpu->htmChecker->abort();
 }
 
 BaseHTMCheckpointPtr&

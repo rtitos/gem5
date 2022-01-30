@@ -53,6 +53,7 @@
 #include "config/the_isa.hh"
 #include "cpu/pc_event.hh"
 #include "cpu/reg_class.hh"
+#include "enums/LockStepMode.hh"
 
 namespace gem5
 {
@@ -322,6 +323,9 @@ class ThreadContext : public PCEventScope
                                      HtmFailureFaultCause cause) = 0;
     virtual BaseHTMCheckpointPtr& getHtmCheckpointPtr() = 0;
     virtual void setHtmCheckpointPtr(BaseHTMCheckpointPtr cpt) = 0;
+    bool forceHtmDisabled();
+    bool forceHtmRetryStatusBit();
+    int getHtmUndoLogSize();
 };
 
 /** @{ */

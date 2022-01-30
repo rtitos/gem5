@@ -31,3 +31,4 @@ m5out
 configs/example/memcheck.cfg
 configs/dram/lowp_sweep.cfg
 .pyenv
+gem5_path/scripts/tasks-gem5/tasks-gem5.config

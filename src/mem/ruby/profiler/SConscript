@@ -33,5 +33,7 @@ if env['PROTOCOL'] == 'None':
 
 Source('AccessTraceForAddress.cc')
 Source('AddressProfiler.cc')
+Source('XactProfiler.cc')
+Source('XactVisualizer.cc')
 Source('Profiler.cc')
 Source('StoreTrace.cc')

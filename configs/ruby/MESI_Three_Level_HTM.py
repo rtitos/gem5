@@ -165,9 +165,9 @@ def create_system(options, full_system, system, dma_ports, bootmem,
             # Connect the L0 and L1 controllers
             l0_cntrl.prefetchQueue = MessageBuffer()
             l0_cntrl.mandatoryQueue = MessageBuffer()
-            l0_cntrl.bufferToL1 = MessageBuffer(ordered = True)
+            l0_cntrl.bufferToL1 = MessageBuffer() # ordered = True)
             l1_cntrl.bufferFromL0 = l0_cntrl.bufferToL1
-            l0_cntrl.bufferFromL1 = MessageBuffer(ordered = True)
+            l0_cntrl.bufferFromL1 = MessageBuffer() # ordered = True)
             l1_cntrl.bufferToL0 = l0_cntrl.bufferFromL1
 
             # Connect the L1 controllers and the network

@@ -116,6 +116,9 @@ class ISA : public BaseISA
 
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
+    void startup() override;
+    void takeOverFrom(ThreadContext *new_tc,
+                      ThreadContext *old_tc) override;
 
     void setThreadContext(ThreadContext *_tc) override;
 

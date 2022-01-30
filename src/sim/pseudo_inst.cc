@@ -51,6 +51,8 @@
 #include <string>
 #include <vector>
 
+#include <gem5/m5ops.h>
+
 #include "base/debug.hh"
 #include "base/output.hh"
 #include "cpu/base.hh"
@@ -60,6 +62,7 @@
 #include "debug/WorkItems.hh"
 #include "dev/net/dist_iface.hh"
 #include "params/BaseCPU.hh"
+#include "sim/full_system.hh"
 #include "sim/process.hh"
 #include "sim/serialize.hh"
 #include "sim/sim_events.hh"
@@ -189,6 +192,71 @@ m5sum(ThreadContext *tc, uint64_t a, uint64_t b, uint64_t c,
 {
     DPRINTF(PseudoInst, "pseudo_inst::m5sum(%#x, %#x, %#x, %#x, %#x, %#x)\n",
             a, b, c, d, e, f);
+
+    if (IS_M5_SUM_HACK(a,b,c,d)) {
+      uint64_t hack_type = e;
+      switch(hack_type) {
+      case M5_SUM_HACK_TYPE_KVM_CKPT_SYNC:
+    //////////////// checkpoint_m5sum_kvm_hack ////////////////
+    // See documentation in src/sim/System.py
+    // When --checkpoint-m5sum-kvm-hack provided and the 6 args passed
+    // to m5_sum match the HEXSPEAK values above, m5sum returns 0
+    // instead of the sum of all arguments.  This is used to cause the
+    // simulated benchmark to enter an endless loop immediately after
+    // a call to m5_checkpoint (directly or indirectly via
+    // work_begin). The expected use is to exit this KVM simulation
+    // after writing the checkpoint (while in the endless loop). The
+    // benchmark will be able to continue execution once the
+    // checkpoint is restored simply by not passing the
+    // --checkpoint-m5sum-kvm-hack option
+    // Keep the following HEXSPEAK values in sync with your benchmark
+    // instrumentation code as correct checkpointing when using KVM to
+    // fast-forward simulation depends on this hacky tweak to m5sum
+        assert(f == 0);
+        if (tc->getCpuPtr()->system->params().checkpoint_m5sum_kvm_hack) {
+            DPRINTF(PseudoInst, "m5sum kvm hack detected, returning 0\n");
+            return 0;
+        } else {
+            DPRINTF(PseudoInst,
+                    "pseudo_inst::m5sum found dummy m5sum loop values but"
+                    "--checkpoint-m5sum-kvm-hack not specified\n");
+        }
+        break;
+    //////////////// checkpoint_m5sum_kvm_hack end ////////////////
+      case M5_SUM_HACK_TYPE_REGION_BEGIN:
+      case M5_SUM_HACK_TYPE_REGION_END:
+          {
+              HTM *htm = tc->getSystemPtr()->getHTM();
+              if (htm != nullptr && htm->params().profiler) {
+                  uint64_t region = f;
+                  htm->notifyPseudoInstWork(
+                             hack_type == M5_SUM_HACK_TYPE_REGION_BEGIN,
+                             tc->getCpuPtr()->cpuId(),
+                             region);
+              }
+              break;
+          }
+      case M5_SUM_HACK_TYPE_LOGTM_SETUP_LOG:
+          {
+              HTM *htm = tc->getSystemPtr()->getHTM();
+              if (htm != nullptr && !htm->params().lazy_vm) {
+                  Addr logBaseAddr = Addr(f);
+                  bool needsLogWalk =
+                      htm->setupLog(tc->getCpuPtr()->cpuId(),
+                                    logBaseAddr);
+                  if (needsLogWalk) {
+                      // Need log walk so that HTM can setup
+                      // virtual-to-physical translations
+                      return 0;
+                  }
+              }
+              break;
+          }
+      default:
+          panic("Unknown m5_sum hack type:\"%#lx\"", hack_type);
+      }
+    }
+
     return a + b + c + d + e + f;
 }
 
@@ -490,6 +558,15 @@ workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid)
     tc->getCpuPtr()->workItemBegin();
     sys->workItemBegin(threadid, workid);
 
+    if (sys->workItemShowProgress()) {
+        // Show progress: print one dot for every work item begun
+        std::cout << "." << std::flush;
+        uint64_t count = sys->getWorkItemsBegin();
+        if ((count > 0) && (count & 0x3f) == 0) {
+            // print count+endl every 64 work items
+            std::cout << count << std::endl;
+        }
+    }
     //
     // If specified, determine if this is the specific work item the user
     // identified

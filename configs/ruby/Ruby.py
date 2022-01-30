@@ -48,6 +48,7 @@ addToPath('../')
 from common import ObjectList
 from common import MemConfig
 from common import FileSystemConfig
+from common import HTMOptions
 
 from topologies import *
 from network import Network
@@ -183,6 +184,12 @@ def create_system(options, full_system, system, piobus = None, dma_ports = [],
 
     system.ruby = RubySystem()
     ruby = system.ruby
+    if buildEnv['PROTOCOL'] == 'MESI_Three_Level_HTM_umu':
+        # Flexible HTM support from University of Murcia: For
+        # supported protocols (*HTM_umu), create object that maintains
+        # HTM config options.
+        system.htm = RubyHTM()
+        HTMOptions.setHTMOptions(system.htm, options)
 
     # Generate pseudo filesystem
     FileSystemConfig.config_filesystem(system, options)
@@ -239,6 +246,8 @@ def create_system(options, full_system, system, piobus = None, dma_ports = [],
         for cpu_seq in cpu_sequencers:
             cpu_seq.connectIOPorts(piobus)
 
+    # HTM: Pass protocol string to RubySystem (sanity checks)
+    ruby.protocol = protocol
     ruby.number_of_virtual_networks = ruby.network.number_of_virtual_networks
     ruby._cpu_ports = cpu_sequencers
     ruby.num_of_sequencers = len(cpu_sequencers)
